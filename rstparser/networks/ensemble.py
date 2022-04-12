@@ -1,10 +1,12 @@
 import functools
+
 import torch
 import torch.nn as nn
-from torch.nn.functional import softmax
-import dataset.rst_tree as rsttree
 from nltk import Tree
-from networks.parser import SpanBasedParser
+from torch.nn.functional import softmax
+
+import rstparser.dataset.rst_tree as rsttree
+from rstparser.networks.parser import SpanBasedParser
 
 
 class EnsembleParser(nn.Module):

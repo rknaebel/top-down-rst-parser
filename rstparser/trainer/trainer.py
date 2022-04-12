@@ -1,13 +1,14 @@
-import sys
-import torch
-from tqdm import tqdm
-from pathlib import Path
-from nltk import Tree
 import json
+import sys
+from pathlib import Path
 
-from trainer.score import Score
-from trainer.checkpointer import Checkpointer
-from evaluate.rsteval import rst_parseval
+import torch
+from nltk import Tree
+from tqdm import tqdm
+
+from rstparser.evaluate.rsteval import rst_parseval
+from rstparser.trainer.checkpointer import Checkpointer
+from rstparser.trainer.score import Score
 
 
 class Trainer():
@@ -118,8 +119,7 @@ class Trainer():
             "sched": self._scheduler.state_dict(),
             "iter": self._train_iter.state_dict(),
             "score": self._score.state_dict(),
-            "fields": self._fields,
-            "config": self._config,
+            "config": vars(self._config),
         }
         self._checkpointer.save(epoch, model_state, is_best)
         return

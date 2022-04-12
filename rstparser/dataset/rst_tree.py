@@ -1,16 +1,4 @@
-try:
-    if __name__ == '__main__':
-        from trees import InternalTreebankNode, LeafTreebankNode, InternalParseNode, LeafParseNode
-    else:
-        from dataset.trees import InternalTreebankNode, LeafTreebankNode, InternalParseNode, LeafParseNode
-except ImportError:
-    print(
-        """
-We use [trees.py](https://github.com/mitchellstern/minimal-span-parser/blob/master/src/trees.py) in our code.
-Please put it in `src/dataset/`
-"""
-    )
-    exit(-1)
+from rstparser.dataset.trees import InternalTreebankNode, LeafTreebankNode
 
 
 def load_tree_from_string(tree_string):

@@ -1,9 +1,11 @@
 import argparse
-import torch
 import json
-from hdf import HDF
-from embedder import WordEmbedder
-from data_loader import load_vocab
+
+import torch
+
+from rstparser.dataset.data_loader import load_vocab
+from rstparser.dataset.hdf import HDF
+from rstparser.networks.embedder import WordEmbedder
 
 
 def main():

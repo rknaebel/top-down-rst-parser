@@ -1,9 +1,10 @@
 import torch
 import torch.nn as nn
-from torch.nn.utils.rnn import pad_sequence
 from allennlp.commands.elmo import ElmoEmbedder
-from networks.layers import BiLSTM, SelectiveGate
-from dataset.hdf import HDF
+from torch.nn.utils.rnn import pad_sequence
+
+from rstparser.dataset.hdf import HDF
+from rstparser.networks.layers import BiLSTM, SelectiveGate
 
 
 class WordEmbedder(nn.Module):
@@ -246,27 +247,24 @@ class TextEmbedder(nn.Module):
             param.requires_grad = False
 
     def forward(self, inputs, raw_inputs, starts_sentence, spans=None):
-        word_embeddings = None
         indices = inputs[0]
+        # edu_lengts: (batch, )
         edu_lengths = inputs[1]
+        # word_lengths: (batch, num_edus), number of words that make up each edu
         word_lengths = inputs[2]
-        # edu_lengts: (batch, ), 各バッチを構成するEDUの数
-        # word_lengths: (batch, num_edus), 各EDUを構成する単語の数
 
-        word_embeddings = self.word_embedder(indices, raw_inputs, starts_sentence, spans)
         # word_embeddings: (batch, num_edus, num_words, embed_dim)
+        word_embeddings = self.word_embedder(indices, raw_inputs, starts_sentence, spans)
 
-        edu_embeddings = None
         if self.use_gate:
-            # batchを展開
+            # batch expansion
             edu_embeddings = []
             for _embeddings, num_edus, lengths in zip(word_embeddings, edu_lengths, word_lengths):
                 gated_rnn_outputs, sGate = self.gate_lstm(_embeddings[:num_edus], lengths[:num_edus])
                 gated_sum_embeddings = torch.sum(gated_rnn_outputs, dim=1)
                 gated_mean_embeddings = gated_sum_embeddings / lengths[:num_edus].unsqueeze(-1).float()
                 edu_embeddings.append(gated_mean_embeddings)
-
-            # 再構築
+            # rebuild
             edu_embeddings = torch.nn.utils.rnn.pad_sequence(edu_embeddings, batch_first=True)
         else:
             edu_embeddings = torch.sum(word_embeddings, dim=2) / word_lengths.unsqueeze(-1).float()

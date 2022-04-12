@@ -1,8 +1,11 @@
-from tree_utils import binarize, re_categorize, convert2labelled_attachment_tree
 import argparse
-from pathlib import Path
 import json
+from pathlib import Path
+
 from nltk import Tree
+
+from rstparser.dataset.tree_utils import binarize, re_categorize, convert2labelled_attachment_tree
+
 TREE_PRINT_MARGIN = 1000000000
 
 

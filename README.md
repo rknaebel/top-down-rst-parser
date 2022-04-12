@@ -22,6 +22,8 @@ Before running a script, you need to add a path to Dataset preprocessed by
 [Heilman's code](https://github.com/EducationalTestingService/discourse-parsing) into `script/preprocess.sh`.
 
 ```bash
+convert_rst_discourse_tb /data/rst_discourse_treebank /data/pennTreebank/
+make_traindev_split
 bash script/preprocess.sh
 ```
 
@@ -71,9 +73,3 @@ There is sample files of our preprocessing in `data/sample/`.
   pages={8099--8106}
 }
 ```
-
-## LICENSE
-
-This software is released under the NTT License, see `LICENSE.txt`.
-
-According to the license, it is not allowed to create pull requests. Please feel free to send issues.

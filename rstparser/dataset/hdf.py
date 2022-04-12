@@ -1,5 +1,6 @@
-import h5py
 import json
+
+import h5py
 import torch
 
 

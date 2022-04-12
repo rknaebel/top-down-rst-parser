@@ -1,5 +1,6 @@
 from torchtext import data
-from dataset.rst_tree import load_tree_from_string
+
+from rstparser.dataset.rst_tree import load_tree_from_string
 
 
 def rstdt_fields():

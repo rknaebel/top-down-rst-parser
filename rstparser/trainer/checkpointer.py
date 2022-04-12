@@ -1,7 +1,9 @@
+import argparse
+import glob
 import os
 import sys
+
 import torch
-import glob
 
 
 class Checkpointer():
@@ -50,7 +52,8 @@ class Checkpointer():
 
     @classmethod
     def restore(cls, model_path, device):
-        model_state = torch.load(model_path, device)
+        model_state = torch.load(model_path, map_location=device)
+        model_state['config'] = argparse.Namespace(**model_state['config'])
         return model_state
 
     def get_best_model_path(self):

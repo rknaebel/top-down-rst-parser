@@ -21,7 +21,7 @@ def load_config():
         train_settings.add_argument('--metric', default='relation')
         train_settings.add_argument('--maximize-metric', action='store_true')
         train_settings.add_argument('--batch-size', type=int, default=10)
-        train_settings.add_argument('--elmo-batch-size', type=int, default=128)
+        train_settings.add_argument('--elmo-batch-size', type=int, default=64)
         train_settings.add_argument('--epochs', type=int, default=50)
         train_settings.add_argument('--cpu', action='store_true')
         train_settings.add_argument('--disable-tqdm', action='store_true')

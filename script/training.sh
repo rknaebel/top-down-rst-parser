@@ -3,7 +3,7 @@ set -x
 
 for x2y in d2e d2p d2s p2s s2e; do
     for i in `seq 1 5`; do
-        python src/main.py train \
+        python -m rstparser.main train \
                --elmo-embed \
                --gate-embed \
                --parent-label-embed \

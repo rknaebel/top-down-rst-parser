@@ -1,11 +1,13 @@
+from collections import defaultdict
+
 import torch
 import torch.nn as nn
-from networks.parser import SpanBasedParser
-from networks.ensemble import EnsembleParser
-from torchtext.data import Batch
-from dataset.merge_file import Doc
 from nltk import Tree
-from collections import defaultdict
+from torchtext.data import Batch
+
+from rstparser.dataset.merge_file import Doc
+from rstparser.networks.ensemble import EnsembleParser
+from rstparser.networks.parser import SpanBasedParser
 
 
 class HierarchicalParser(nn.Module):
@@ -47,26 +49,26 @@ class HierarchicalParser(nn.Module):
 
         return cls(hierarchical_models, config.hierarchical_type, fields, device)
 
-    @classmethod
-    def load_old_model(cls, model_paths, config, fields):
-        # load model and classify hierarchical type
-        hierarchical_models = defaultdict(list)
-        device = torch.device('cpu') if config.cpu else torch.device('cuda:0')
-        for model_path in model_paths:
-            model = SpanBasedParser.load_old_model(model_path, config, fields)
-            h_type = model_path.split('/')[-1].split('_')[1]
-            assert h_type in ['d2e', 'd2s', 'd2p', 'p2e', 'p2s', 's2e']
-            hierarchical_models[h_type].append(model)
-
-        for h_type, models in hierarchical_models.items():
-            if models is None or len(models) == 0:
-                hierarchical_models[h_type] = None
-            if len(models) == 1:
-                hierarchical_models[h_type] = models[0]
-            if len(models) > 1:
-                hierarchical_models[h_type] = EnsembleParser(models, device)
-
-        return cls(hierarchical_models, config.hierarchical_type, fields, device)
+    # @classmethod
+    # def load_old_model(cls, model_paths, config, fields):
+    #     # load model and classify hierarchical type
+    #     hierarchical_models = defaultdict(list)
+    #     device = torch.device('cpu') if config.cpu else torch.device('cuda:0')
+    #     for model_path in model_paths:
+    #         model = SpanBasedParser.load_old_model(model_path, config, fields)
+    #         h_type = model_path.split('/')[-1].split('_')[1]
+    #         assert h_type in ['d2e', 'd2s', 'd2p', 'p2e', 'p2s', 's2e']
+    #         hierarchical_models[h_type].append(model)
+    #
+    #     for h_type, models in hierarchical_models.items():
+    #         if models is None or len(models) == 0:
+    #             hierarchical_models[h_type] = None
+    #         if len(models) == 1:
+    #             hierarchical_models[h_type] = models[0]
+    #         if len(models) > 1:
+    #             hierarchical_models[h_type] = EnsembleParser(models, device)
+    #
+    #     return cls(hierarchical_models, config.hierarchical_type, fields, device)
 
     def parse(self, doc):
         output = self.__call__(doc)

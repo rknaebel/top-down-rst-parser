@@ -1,8 +1,9 @@
-from torchtext import data
-from torchtext.vocab import Vocab
-import torch
 import pickle
 from collections import Counter
+
+import torch
+from torchtext import data
+from torchtext.vocab import Vocab
 
 
 class Dataset():

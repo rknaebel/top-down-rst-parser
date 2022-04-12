@@ -1,16 +1,16 @@
-import torch
-import torch.optim as optim
 import sys
 
-from config import load_config
-from dataset.fields import rstdt_fields
-from dataset.data_loader import Dataset, load_vocab
-from networks.parser import SpanBasedParser
-from networks.ensemble import EnsembleParser
-from networks.hierarchical import HierarchicalParser
-from trainer.trainer import Trainer
-from dataset.merge_file import Doc
+import torch
+import torch.optim as optim
 from nltk import Tree
+
+from rstparser.config import load_config
+from rstparser.dataset.data_loader import Dataset, load_vocab
+from rstparser.dataset.fields import rstdt_fields
+from rstparser.dataset.merge_file import Doc
+from rstparser.networks.hierarchical import HierarchicalParser
+from rstparser.networks.parser import SpanBasedParser
+from rstparser.trainer.trainer import Trainer
 
 
 def main():
@@ -104,14 +104,12 @@ def parse(config):
     config.output_dir.mkdir(parents=True, exist_ok=True)
     filelist = []
     if len(config.input_doc) == 1:
-        # 単一のファイル or ディレクトリ
         input_doc = config.input_doc[0]
         if input_doc.is_dir():
             filelist = input_doc.iterdir()
         else:
             filelist = [input_doc]
     else:
-        # 複数のファイル
         filelist = config.input_doc
 
     for doc_path in filelist:

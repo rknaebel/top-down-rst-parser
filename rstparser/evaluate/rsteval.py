@@ -1,6 +1,7 @@
 from nltk import Tree
-from tree_utils import get_brackets
-from tree_utils import convert2rst_tree
+
+from rstparser.evaluate.tree_function import convert2rst_tree
+from rstparser.evaluate.tree_function import get_brackets
 
 
 def rst_parseval(pred_trees, gold_trees, eval_type='full', gold_segmentation=True):
@@ -37,3 +38,7 @@ def rst_parseval(pred_trees, gold_trees, eval_type='full', gold_segmentation=Tru
     if gold_segmentation:
         assert sum_pred == sum_gold
     return micro_f1
+
+
+def original_parseval(pred_trees, gold_trees):
+    pass

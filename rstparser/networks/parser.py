@@ -1,12 +1,14 @@
 import functools
+
 import torch
 import torch.nn as nn
-from networks.layers import BiLSTM, FeedForward, DeepBiAffine
-from networks.embedder import TextEmbedder, Embeddings
-import dataset.trees as rsttree
 from nltk import Tree
-from trainer.checkpointer import Checkpointer
-from dataset.data_loader import load_vocab
+
+import rstparser.dataset.trees as rsttree
+from rstparser.dataset.data_loader import load_vocab
+from rstparser.networks.embedder import TextEmbedder, Embeddings
+from rstparser.networks.layers import BiLSTM, FeedForward, DeepBiAffine
+from rstparser.trainer.checkpointer import Checkpointer
 
 
 class SpanBasedParser(nn.Module):
@@ -134,51 +136,51 @@ class SpanBasedParser(nn.Module):
 
         return model
 
-    @classmethod
-    def load_old_model(cls, old_model_path, config, fields):
-        device = torch.device('cpu') if config.cpu else torch.device('cuda:0')
-        ns_vocab_path = '/home/lr/kobayasi/Projects/forAAAI/SpanBasedRSTParser_Gate/data/Corpora/vocab.label'
-        rela_vocab_path = '/home/lr/kobayasi/Projects/forAAAI/SpanBasedRSTParser_Gate/data/Corpora/vocab.relation'
-        model_state = Checkpointer.restore(old_model_path, device=device)
-
-        def replace(params):
-            new_params = type(params)()
-            for name, vec in params.items():
-                if name.startswith('gate_lstm.'):
-                    new_name = 'text_embedder.' + name
-                    new_params[new_name] = vec
-                elif name.startswith('lstm'):
-                    new_name = 'bilstm.' + '.'.join(name.split('.')[1:])
-                    new_params[new_name] = vec
-                elif name.startswith('ns_embed'):
-                    new_name = 'ns_embedder.embed.' + '.'.join(name.split('.')[1:])
-                    new_params[new_name] = vec
-                elif name.startswith('rela_embed'):
-                    new_name = 'rela_embedder.embed.' + '.'.join(name.split('.')[1:])
-                    new_params[new_name] = vec
-                elif name.startswith('bound_embed'):
-                    new_name = 'bound_embedder.embed.' + '.'.join(name.split('.')[1:])
-                    new_params[new_name] = vec
-                else:
-                    new_params[name] = vec
-
-            return new_params
-
-        model_param = replace(model_state['model'])
-        embed_key = 'text_embedder.word_embedder.word_embed.embed.weight'
-        model_param[embed_key] = fields['tokenized_strings'][1].vocab.vectors
-
-        embedder = TextEmbedder.build_model(config, fields)
-        hidden = 250
-        margin = 1.0
-        dropout = 0.4
-        ns_vocab = load_vocab(ns_vocab_path, specials=['<pad>'], fmt='pickle')
-        rela_vocab = load_vocab(rela_vocab_path, specials=['<pad>'], fmt='pickle')
-        model = cls(embedder, hidden, margin, dropout, ns_vocab, rela_vocab, device, 'd2e', False)
-        model.to(device)
-        model.load_state_dict(model_param)
-        model.eval()
-        return model
+    # @classmethod
+    # def load_old_model(cls, old_model_path, config, fields):
+    #     device = torch.device('cpu') if config.cpu else torch.device('cuda:0')
+    #     ns_vocab_path = '/home/lr/kobayasi/Projects/forAAAI/SpanBasedRSTParser_Gate/data/Corpora/vocab.label'
+    #     rela_vocab_path = '/home/lr/kobayasi/Projects/forAAAI/SpanBasedRSTParser_Gate/data/Corpora/vocab.relation'
+    #     model_state = Checkpointer.restore(old_model_path, device=device)
+    #
+    #     def replace(params):
+    #         new_params = type(params)()
+    #         for name, vec in params.items():
+    #             if name.startswith('gate_lstm.'):
+    #                 new_name = 'text_embedder.' + name
+    #                 new_params[new_name] = vec
+    #             elif name.startswith('lstm'):
+    #                 new_name = 'bilstm.' + '.'.join(name.split('.')[1:])
+    #                 new_params[new_name] = vec
+    #             elif name.startswith('ns_embed'):
+    #                 new_name = 'ns_embedder.embed.' + '.'.join(name.split('.')[1:])
+    #                 new_params[new_name] = vec
+    #             elif name.startswith('rela_embed'):
+    #                 new_name = 'rela_embedder.embed.' + '.'.join(name.split('.')[1:])
+    #                 new_params[new_name] = vec
+    #             elif name.startswith('bound_embed'):
+    #                 new_name = 'bound_embedder.embed.' + '.'.join(name.split('.')[1:])
+    #                 new_params[new_name] = vec
+    #             else:
+    #                 new_params[name] = vec
+    #
+    #         return new_params
+    #
+    #     model_param = replace(model_state['model'])
+    #     embed_key = 'text_embedder.word_embedder.word_embed.embed.weight'
+    #     model_param[embed_key] = fields['tokenized_strings'][1].vocab.vectors
+    #
+    #     embedder = TextEmbedder.build_model(config, fields)
+    #     hidden = 250
+    #     margin = 1.0
+    #     dropout = 0.4
+    #     ns_vocab = load_vocab(ns_vocab_path, specials=['<pad>'], fmt='pickle')
+    #     rela_vocab = load_vocab(rela_vocab_path, specials=['<pad>'], fmt='pickle')
+    #     model = cls(embedder, hidden, margin, dropout, ns_vocab, rela_vocab, device, 'd2e', False)
+    #     model.to(device)
+    #     model.load_state_dict(model_param)
+    #     model.eval()
+    #     return model
 
     def parse(self, doc):
         batch = doc.to_batch(self.device)

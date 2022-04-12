@@ -1,14 +1,16 @@
 import argparse
 import json
 from pathlib import Path
+
 from nltk import Tree
-from evaluate.rsteval import rst_parseval
+
+from rstparser.evaluate.rsteval import rst_parseval
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--tgt-dir', nargs='+', type=Path)
-    parser.add_argument('--json-file', type=Path, required=True)
+    parser.add_argument('--json-file', type=Path, default='data/test.jsonl')
     args = parser.parse_args()
 
     doc2gold = load_gold_tree(args.json_file)
@@ -27,14 +29,15 @@ def main():
         print(name)
         for eval_type in ['span', 'ns', 'relation', 'full']:
             score = rst_parseval(pred_trees, gold_trees, eval_type=eval_type)
-            print('{}'.format(score))
-    pass
+            print(eval_type, score)
+    return
 
 
 def load_tree(file_path):
     tree = None
     with open(file_path) as f:
-        line = f.readline()
+        # line = f.readline()
+        line = ''.join(f.readlines())
         tree = Tree.fromstring(line.strip())
 
     return tree
