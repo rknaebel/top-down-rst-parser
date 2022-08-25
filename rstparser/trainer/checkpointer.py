@@ -6,7 +6,7 @@ import sys
 import torch
 
 
-class Checkpointer():
+class Checkpointer:
     def __init__(self,
                  serialization_dir,
                  keep_all_serialized_models,
@@ -43,15 +43,15 @@ class Checkpointer():
 
             previous_best_model_path = self._best_model_path
             if previous_best_model_path is not None and \
-               os.path.isfile(previous_best_model_path):
+                    os.path.isfile(previous_best_model_path):
                 os.remove(previous_best_model_path)
 
             self._best_model_path = model_path
 
         return
 
-    @classmethod
-    def restore(cls, model_path, device):
+    @staticmethod
+    def restore(model_path, device):
         model_state = torch.load(model_path, map_location=device)
         model_state['config'] = argparse.Namespace(**model_state['config'])
         return model_state

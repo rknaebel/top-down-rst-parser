@@ -4,15 +4,17 @@ from pathlib import Path
 
 import torch
 from nltk import Tree
+from torch.utils.data import random_split, DataLoader
 from tqdm import tqdm
 
+from rstparser.dataset.data_loader import Batch
 from rstparser.evaluate.rsteval import rst_parseval
 from rstparser.trainer.checkpointer import Checkpointer
 from rstparser.trainer.score import Score
 
 
-class Trainer():
-    def __init__(self, config, model, optimizer, scheduler, train_iter, valid_iter, fields):
+class Trainer:
+    def __init__(self, config, model, optimizer, scheduler, dataset):
         self._epochs = config.epochs
         self._disable_tqdm = config.disable_tqdm
         self._log_file = config.log_file
@@ -23,21 +25,23 @@ class Trainer():
 
         save_minimum = not config.maximize_metric
         self._score = Score(config.metric, save_minimum=save_minimum)
+        self.dataset = dataset
+        dataset_length = len(self.dataset)
+        train_size = int(dataset_length * 0.8)
+        valid_size = dataset_length - train_size
+        train_dataset, valid_dataset = random_split(self.dataset, [train_size, valid_size])
 
-        self._train_iter = train_iter
-        self._valid_iter = valid_iter
+        self._train_iter = DataLoader(train_dataset, batch_size=config.batch_size, collate_fn=Batch.from_samples)
+        self._valid_iter = DataLoader(valid_dataset, batch_size=config.batch_size, collate_fn=Batch.from_samples)
 
         self._model = model
         self._optimizer = optimizer
         self._max_grad_norm = config.grad_clipping
         self._scheduler = scheduler
 
-        self._fields = fields
         self._config = config
-
         self._start_epoch = 1
 
-        # call at end of "__init__"
         if self._checkpointer.get_latast_checkpoint() is not None:
             self.load_checkpoint()
 
@@ -49,7 +53,6 @@ class Trainer():
         self._model.load_state_dict(checkpoint['model'])
         self._optimizer.load_state_dict(checkpoint['optim'])
         self._scheduler.load_state_dict(checkpoint['sched'])
-        # self._train_iter.load_state_dict(checkpoint['iter'])
         self._score.load_state_dict(checkpoint['score'])
         print('train from checkpoint: {}'.format(checkpoint_path), file=sys.stderr)
 
@@ -78,7 +81,11 @@ class Trainer():
         model.train()
         for batch in tqdm(_iter, desc='training', ncols=128, disable=disable_tqdm):
             optimizer.zero_grad()
-            output_dict = model(batch)
+            try:
+                output_dict = model(batch)
+            except RuntimeError as e:
+                sys.stderr.write(f">> Error during Training: {e}")
+                continue
             loss = output_dict["loss"]
             if loss.item() == 0:
                 continue
@@ -99,8 +106,12 @@ class Trainer():
         for batch in tqdm(_iter, desc='validation', ncols=128, disable=disable_tqdm):
             with torch.no_grad():
                 gold_trees.extend(batch.tree)
-                batch.tree = None
-                output_dict = model(batch)
+                try:
+                    output_dict = model(batch)
+                except RuntimeError as e:
+                    # TODO adapt batch size dynamically
+                    sys.stderr.write(f">> Error during Validation: {e}")
+                    continue
                 pred_trees.extend(output_dict['tree'])
 
         pred_trees = [Tree.fromstring(tree) for tree in pred_trees]
@@ -117,9 +128,12 @@ class Trainer():
             "model": self._model.state_dict(),
             "optim": self._optimizer.state_dict(),
             "sched": self._scheduler.state_dict(),
-            "iter": self._train_iter.state_dict(),
             "score": self._score.state_dict(),
             "config": vars(self._config),
+            "vocab": {
+                "ns": self._model.ns_vocab,
+                "rel": self._model.rela_vocab,
+            }
         }
         self._checkpointer.save(epoch, model_state, is_best)
         return

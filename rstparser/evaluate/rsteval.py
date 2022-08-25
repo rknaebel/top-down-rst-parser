@@ -32,9 +32,9 @@ def rst_parseval(pred_trees, gold_trees, eval_type='full', gold_segmentation=Tru
         sum_gold += gold_cnt
 
     # micro average f1
-    micro_recall = sum_match / sum_pred
+    micro_recall = sum_match / sum_pred if sum_pred > 0 else 0
     micro_precision = sum_match / sum_gold
-    micro_f1 = 2 * (micro_recall * micro_precision) / (micro_recall + micro_precision)
+    micro_f1 = 2 * (micro_recall * micro_precision) / (micro_recall + micro_precision) if micro_recall > 0 else 0
     if gold_segmentation:
         assert sum_pred == sum_gold
     return micro_f1

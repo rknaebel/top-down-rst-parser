@@ -34,9 +34,7 @@ def main():
 
 
 def load_tree(file_path):
-    tree = None
     with open(file_path) as f:
-        # line = f.readline()
         line = ''.join(f.readlines())
         tree = Tree.fromstring(line.strip())
 

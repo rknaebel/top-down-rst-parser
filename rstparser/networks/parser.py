@@ -2,17 +2,16 @@ import functools
 
 import torch
 import torch.nn as nn
-from nltk import Tree
 
 import rstparser.dataset.trees as rsttree
-from rstparser.dataset.data_loader import load_vocab
+from rstparser.dataset.data_loader import Batch
 from rstparser.networks.embedder import TextEmbedder, Embeddings
 from rstparser.networks.layers import BiLSTM, FeedForward, DeepBiAffine
 from rstparser.trainer.checkpointer import Checkpointer
 
 
 class SpanBasedParser(nn.Module):
-    def __init__(self, text_embedder, hidden_size, margin, dropout,
+    def __init__(self, text_embedder: TextEmbedder, hidden_size, margin, dropout,
                  ns_vocab, relation_vocab, device, hierarchical_type,
                  label_type, use_parent_label, use_hard_boundary):
         super(SpanBasedParser, self).__init__()
@@ -30,17 +29,17 @@ class SpanBasedParser(nn.Module):
 
         # Embeddings
         """ Text embedder """
-        self.text_embedder = text_embedder
+        self.text_embedder: TextEmbedder = text_embedder
         embed_size = self.text_embedder.get_embed_size()
 
         """ Parent label embedder """
-        self.label_embed_size = 10
+        self.label_embed_size = 16
         self.ns_embedder = Embeddings(len(ns_vocab), self.label_embed_size,
                                       0.0, padding_idx=ns_vocab.stoi['<pad>'])
         self.rela_embedder = Embeddings(len(relation_vocab), self.label_embed_size,
                                         0.0, padding_idx=relation_vocab.stoi['<pad>'])
         """ Bound embedder """
-        self.bound_embed_size = 10
+        self.bound_embed_size = 16
         self.bound_embedder = Embeddings(16, self.bound_embed_size, 0.0)
 
         # BiLSTM
@@ -48,13 +47,12 @@ class SpanBasedParser(nn.Module):
         self.edge_pad = nn.ZeroPad2d((0, 0, 1, 1))
         # Scoring functions
         """ Split Scoring """
-        span_embed_size = self.hidden_size*2 + self.bound_embed_size
-        self.span_embed_size = span_embed_size
-        self.f_split = DeepBiAffine(span_embed_size, self.dropout)
+        self.span_embed_size = self.hidden_size * 2 + self.bound_embed_size
+        self.f_split = DeepBiAffine(self.span_embed_size, self.dropout)
         """ Label Scoring """
-        feature_embed_size = span_embed_size*4
+        feature_embed_size = self.span_embed_size * 4
         if use_parent_label:
-            feature_embed_size += self.label_embed_size*2
+            feature_embed_size += self.label_embed_size * 2
         self.f_ns = FeedForward(feature_embed_size, [self.hidden_size], len(ns_vocab), self.dropout)
         self.f_rela = FeedForward(feature_embed_size, [self.hidden_size], len(relation_vocab), self.dropout)
 
@@ -62,136 +60,46 @@ class SpanBasedParser(nn.Module):
         self.text_embedder.freeze()
         self.bilstm.freeze()
 
-    @classmethod
-    def build_model(cls, config, fields):
-        embedder = TextEmbedder.build_model(config, fields)
+    @staticmethod
+    def build_model(config, ns_vocab, rel_vocab):
+        embedder = TextEmbedder.build_model(config)
         hidden = config.hidden
         margin = config.margin
         dropout = config.dropout
-        ns_vocab = load_vocab(config.data_root / config.ns_vocab, specials=['<pad>'], fmt='tsv')
-        rela_vocab = load_vocab(config.data_root / config.relation_vocab, specials=['<pad>'], fmt='tsv')
         device = torch.device('cpu') if config.cpu else torch.device('cuda:0')
         hierarchical_type = config.hierarchical_type
         label_type = getattr(config, 'label_type', 'full')
         use_parent_label = getattr(config, 'parent_label_embed', True)
         use_hard_boundary = getattr(config, 'use_hard_boundary', False)
-        model = cls(embedder, hidden, margin, dropout, ns_vocab, rela_vocab, device,
-                    hierarchical_type, label_type, use_parent_label, use_hard_boundary)
+        model = SpanBasedParser(embedder, hidden, margin, dropout, ns_vocab, rel_vocab, device,
+                                hierarchical_type, label_type, use_parent_label, use_hard_boundary)
         model.to(device)
         return model
 
-    @classmethod
-    def load_model(cls, model_path, config, fields):
+    @staticmethod
+    def load_model(model_path, config):
         print('load model: {}'.format(model_path))
         device = torch.device('cpu') if config.cpu else torch.device('cuda:0')
         model_state = Checkpointer.restore(model_path, device=device)
         model_config = model_state['config']
         model_config.cpu = config.cpu
-        if config.hdf_file is not None:
-            model_config.hdf_file = config.hdf_file
         model_config.use_hard_boundary = config.use_hard_boundary
         model_param = model_state['model']
-        if hasattr(fields['tokenized_strings'][1], 'vocab'):
-            # use vocab for test
-            embed_key = 'text_embedder.word_embedder.word_embed.embed.weight'
-            model_param[embed_key] = fields['tokenized_strings'][1].vocab.vectors
-        else:
-            # if test fields don't have vocab, we use fields of train and valid
-            fields = model_state['fields']
-        model = cls.build_model(model_config, fields)
-        model.load_state_dict(model_param)
+        ns_vocab = model_state['vocab']['ns']
+        rel_vocab = model_state['vocab']['rel']
+        model = SpanBasedParser.build_model(model_config, ns_vocab, rel_vocab)
+        model.load_state_dict(model_param, strict=False)
         model.eval()
         return model
-
-    @classmethod
-    def load_pretrained_model(cls, model_path, config, fields):
-        print('load model: {}'.format(model_path))
-        device = torch.device('cpu') if config.cpu else torch.device('cuda:0')
-        model_state = Checkpointer.restore(model_path, device=device)
-        model_config = model_state['config']
-        model_config.cpu = config.cpu
-        if config.hdf_file is not None:
-            model_config.hdf_file = config.hdf_file
-        model_config.label_type = 'full'
-        model_config.parent_label_embed = True
-        model_param = model_state['model']
-        # copy params
-        for key, value in vars(model_config).items():
-            if not hasattr(config, key):
-                setattr(config, key, getattr(model_config, key))
-
-        if hasattr(fields['tokenized_strings'][1], 'vocab'):
-            # use vocab for test
-            embed_key = 'text_embedder.word_embedder.word_embed.embed.weight'
-            model_param[embed_key] = fields['tokenized_strings'][1].vocab.vectors
-        else:
-            # if test fields don't have vocab, we use fields of train and valid
-            fields = model_state['fields']
-
-        model = cls.build_model(model_config, fields)
-        model.load_state_dict(model_param)
-
-        if config.freeze:
-            model.freeze()
-
-        return model
-
-    # @classmethod
-    # def load_old_model(cls, old_model_path, config, fields):
-    #     device = torch.device('cpu') if config.cpu else torch.device('cuda:0')
-    #     ns_vocab_path = '/home/lr/kobayasi/Projects/forAAAI/SpanBasedRSTParser_Gate/data/Corpora/vocab.label'
-    #     rela_vocab_path = '/home/lr/kobayasi/Projects/forAAAI/SpanBasedRSTParser_Gate/data/Corpora/vocab.relation'
-    #     model_state = Checkpointer.restore(old_model_path, device=device)
-    #
-    #     def replace(params):
-    #         new_params = type(params)()
-    #         for name, vec in params.items():
-    #             if name.startswith('gate_lstm.'):
-    #                 new_name = 'text_embedder.' + name
-    #                 new_params[new_name] = vec
-    #             elif name.startswith('lstm'):
-    #                 new_name = 'bilstm.' + '.'.join(name.split('.')[1:])
-    #                 new_params[new_name] = vec
-    #             elif name.startswith('ns_embed'):
-    #                 new_name = 'ns_embedder.embed.' + '.'.join(name.split('.')[1:])
-    #                 new_params[new_name] = vec
-    #             elif name.startswith('rela_embed'):
-    #                 new_name = 'rela_embedder.embed.' + '.'.join(name.split('.')[1:])
-    #                 new_params[new_name] = vec
-    #             elif name.startswith('bound_embed'):
-    #                 new_name = 'bound_embedder.embed.' + '.'.join(name.split('.')[1:])
-    #                 new_params[new_name] = vec
-    #             else:
-    #                 new_params[name] = vec
-    #
-    #         return new_params
-    #
-    #     model_param = replace(model_state['model'])
-    #     embed_key = 'text_embedder.word_embedder.word_embed.embed.weight'
-    #     model_param[embed_key] = fields['tokenized_strings'][1].vocab.vectors
-    #
-    #     embedder = TextEmbedder.build_model(config, fields)
-    #     hidden = 250
-    #     margin = 1.0
-    #     dropout = 0.4
-    #     ns_vocab = load_vocab(ns_vocab_path, specials=['<pad>'], fmt='pickle')
-    #     rela_vocab = load_vocab(rela_vocab_path, specials=['<pad>'], fmt='pickle')
-    #     model = cls(embedder, hidden, margin, dropout, ns_vocab, rela_vocab, device, 'd2e', False)
-    #     model.to(device)
-    #     model.load_state_dict(model_param)
-    #     model.eval()
-    #     return model
 
     def parse(self, doc):
         batch = doc.to_batch(self.device)
         output = self.forward(batch)
         tree = output['tree'][0]
-        tree = Tree.fromstring(tree)
         return tree
 
     def forward(self, batch):
         rnn_outputs = self.embed(batch)
-
         losses = []
         pred_trees = []
         for i in range(len(batch)):
@@ -200,8 +108,7 @@ class SpanBasedParser(nn.Module):
                 batch.starts_sentence[i],
                 batch.starts_paragraph[i],
                 batch.parent_label[i],
-                batch.tree[i].convert() if batch.tree is not None else None)
-
+                batch.tree[i].convert() if batch.tree and self.training else None)
             losses.append(loss)
             pred_trees.append(tree.convert().linearize())
 
@@ -212,17 +119,9 @@ class SpanBasedParser(nn.Module):
             'tree': pred_trees,
         }
 
-    def embed(self, batch):
-        # batch.tree: list of Tree (batch)
-        # batch.word: tuple
-        # batch.word[0]: tensor (batch, num_edus, num_words)
-        # batch.word[1]: edu lengths (batch)
-        # batch.word[2]: word lengths (batch, num_edus)
-        # batch.elmo_word: raw input text for elmo embedding
-
-        edu_embeddings = self.text_embedder(batch.word, batch.elmo_word, batch.starts_sentence, batch.spans)
-        lstm_outputs = self.bilstm(edu_embeddings, batch.word[1])
-
+    def embed(self, batch: Batch):
+        edu_embeddings = self.text_embedder(batch.edu_len, batch.words_len, batch.elmo_word, batch.starts_sentence)
+        lstm_outputs = self.bilstm(edu_embeddings, batch.edu_len)
         # lstm_outputs: (batch, num_edus, hidden)
         lstm_outputs = [output[:l] for output, l in zip(lstm_outputs, batch.word[1])]
         return lstm_outputs
@@ -234,7 +133,6 @@ class SpanBasedParser(nn.Module):
         self.starts_sentence = starts_sentence
         self.starts_paragraph = starts_paragraph
         self.gold_tree = gold_tree
-        is_train = self.training
 
         @functools.lru_cache(maxsize=None)
         def helper(left, right, parent_label=None):
@@ -267,8 +165,9 @@ class SpanBasedParser(nn.Module):
                 loss = ns_loss + rela_loss + split_loss + left_loss + right_loss
 
             return children, loss
+
         pred_tree, loss = helper(0, sentence_length, parent_label)
-        if is_train:
+        if self.training:
             assert gold_tree.convert().linearize() == pred_tree.convert().linearize()
         return pred_tree, loss
 
@@ -285,8 +184,8 @@ class SpanBasedParser(nn.Module):
         split_scores = split_scores.view(len(left_encodings))
 
         if self.use_hard_boundary:
-            paragraph_split = [not f for f in self.starts_paragraph[left+1:right]]
-            sentence_split = [not f for f in self.starts_sentence[left+1:right]]
+            paragraph_split = [not f for f in self.starts_paragraph[left + 1:right]]
+            sentence_split = [not f for f in self.starts_sentence[left + 1:right]]
             min_value = min(split_scores) - 10.0
             if not all(paragraph_split):
                 split_scores[paragraph_split] = min_value
@@ -300,11 +199,11 @@ class SpanBasedParser(nn.Module):
             return torch.zeros([self.span_embed_size], device=self.device)
 
         forward = (
-            self.rnn_output[right][:self.hidden_size] -
-            self.rnn_output[left][:self.hidden_size])
+                self.rnn_output[right][:self.hidden_size] -
+                self.rnn_output[left][:self.hidden_size])
         backward = (
-            self.rnn_output[left + 1][self.hidden_size:] -
-            self.rnn_output[right + 1][self.hidden_size:])
+                self.rnn_output[left + 1][self.hidden_size:] -
+                self.rnn_output[right + 1][self.hidden_size:])
 
         bound_embedding = self.get_boundary_embedding(left, right)
         span_embedding = torch.cat([forward, backward, bound_embedding])
@@ -329,9 +228,9 @@ class SpanBasedParser(nn.Module):
     def get_boundary_embedding(self, left, right):
         is_start_sentence = self.starts_sentence[left]
         is_start_paragraph = self.starts_paragraph[left]
-        cross_sentence = any(self.starts_sentence[left+1: right])
-        cross_paragraph = any(self.starts_paragraph[left+1: right])
-        bound = int(is_start_sentence*1 + is_start_paragraph*2 + cross_sentence*4 + cross_paragraph*8)
+        cross_sentence = any(self.starts_sentence[left + 1: right])
+        cross_paragraph = any(self.starts_paragraph[left + 1: right])
+        bound = int(is_start_sentence * 1 + is_start_paragraph * 2 + cross_sentence * 4 + cross_paragraph * 8)
         bound = torch.tensor(bound, dtype=torch.long, device=self.device)
         bound_embedding = self.bound_embedder(bound)
         return bound_embedding
@@ -365,8 +264,7 @@ class SpanBasedParser(nn.Module):
         return scores + increment
 
     def predict_split(self, split_scores, left, right):
-        is_train = self.training
-        if is_train:
+        if self.training:
             oracle_split = min(self.gold_tree.oracle_splits(left, right))
             oracle_split_index = oracle_split - (left + 1)
             split_scores = self.augment(split_scores, oracle_split_index)
@@ -375,7 +273,7 @@ class SpanBasedParser(nn.Module):
         argmax_split_index = int(split_scores_np.argmax())
         argmax_split = argmax_split_index + (left + 1)
 
-        if is_train:
+        if self.training:
             split = oracle_split
             split_loss = (
                 split_scores[argmax_split_index] - split_scores[oracle_split_index]
@@ -387,8 +285,7 @@ class SpanBasedParser(nn.Module):
         return split, split_loss
 
     def predict_label(self, label_scores, left, right, sentence_length, vocab, label_idx):
-        is_train = self.training
-        if is_train:
+        if self.training:
             oracle_label = self.gold_tree.oracle_label(left, right)[0].split(':')[label_idx]
             oracle_label_index = vocab.stoi[oracle_label]
             label_scores = self.augment(label_scores, oracle_label_index)
@@ -399,7 +296,7 @@ class SpanBasedParser(nn.Module):
             label_scores_np[1:].argmax() + 1)
         argmax_label = vocab.itos[argmax_label_index]
 
-        if is_train:
+        if self.training:
             label = oracle_label
             label_loss = (
                 label_scores[argmax_label_index] - label_scores[oracle_label_index]

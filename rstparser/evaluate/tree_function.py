@@ -1,28 +1,24 @@
 from nltk import Tree
 
 
-def is_binary(tree):
-    pass
-
-
-def convert2attach_tree(rst_tree, top=True):
-    if top:
-        # RST Treeであることを判定
-        assert rst_tree.label() == 'ROOT'
-
-    if len(rst_tree) == 1:
-        return rst_tree[0]
-
-    left_rst_tree = rst_tree[0]
-    right_rst_tree = rst_tree[1]
-    l_ns, l_relation = left_rst_tree.label().split(':')
-    r_ns, r_relation = right_rst_tree.label().split(':')
-    ns = '-'.join([l_ns, r_ns])
-    relation = l_relation if l_relation != 'Span' else r_relation
-    label = ':'.join([ns, relation])
-
-    return Tree(label, [convert2attach_tree(rst_tree[0], top=False),
-                        convert2attach_tree(rst_tree[1], top=False)])
+# def convert2attach_tree(rst_tree, top=True):
+#     if top:
+#         # RST Treeであることを判定
+#         assert rst_tree.label() == 'ROOT'
+#
+#     if len(rst_tree) == 1:
+#         return rst_tree[0]
+#
+#     left_rst_tree = rst_tree[0]
+#     right_rst_tree = rst_tree[1]
+#     l_ns, l_relation = left_rst_tree.label().split(':')
+#     r_ns, r_relation = right_rst_tree.label().split(':')
+#     ns = '-'.join([l_ns, r_ns])
+#     relation = l_relation if l_relation != 'Span' else r_relation
+#     label = ':'.join([ns, relation])
+#
+#     return Tree(label, [convert2attach_tree(rst_tree[0], top=False),
+#                         convert2attach_tree(rst_tree[1], top=False)])
 
 
 def convert2rst_tree(attach_tree):

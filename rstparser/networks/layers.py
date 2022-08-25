@@ -13,10 +13,10 @@ class SelectiveGate(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x, lengths):
-        rnn_output, last_status = self.lstm(x, lengths, return_last_state=True)
-        sGate = self.sigmoid(self.Ws(rnn_output) + self.Us(last_status).unsqueeze(1))  # BxN_WORDx2H
-        gated_rnn_output = rnn_output * sGate
-        return gated_rnn_output, sGate
+        rnn_output, last_status = self.lstm(x, lengths.cpu(), return_last_state=True)
+        sigmoid_gate = self.sigmoid(self.Ws(rnn_output) + self.Us(last_status).unsqueeze(1))  # BxN_WORDx2H
+        gated_rnn_output = rnn_output * sigmoid_gate
+        return gated_rnn_output, sigmoid_gate
 
 
 class BiLSTM(nn.Module):
@@ -35,7 +35,7 @@ class BiLSTM(nn.Module):
     def forward(self, x, lengths, return_last_state=False):
         lengths, perm_idx = torch.sort(lengths, 0, descending=True)
         x = x[perm_idx]
-        x = torch.nn.utils.rnn.pack_padded_sequence(x, lengths, batch_first=True)
+        x = torch.nn.utils.rnn.pack_padded_sequence(x, lengths.cpu(), batch_first=True)
         y, (h, _) = self.bilstm(x)
         y, _ = torch.nn.utils.rnn.pad_packed_sequence(y, batch_first=True)
         perm_idx_rev = torch.tensor(self._inverse_indices(perm_idx), device=perm_idx.device)

@@ -1,37 +1,37 @@
 import functools
+from typing import List
 
 import torch
 import torch.nn as nn
-from nltk import Tree
 from torch.nn.functional import softmax
 
-import rstparser.dataset.rst_tree as rsttree
+from rstparser.dataset.data_loader import Batch
+from rstparser.dataset.trees import LeafParseNode, InternalParseNode
 from rstparser.networks.parser import SpanBasedParser
 
 
 class EnsembleParser(nn.Module):
     def __init__(self, parsers, device):
         super(EnsembleParser, self).__init__()
-        self.parsers = parsers
+        self.parsers: List[SpanBasedParser] = parsers
         self.device = device
 
-    @classmethod
-    def load_model(cls, model_paths, config, fields):
+    @staticmethod
+    def load_model(model_paths, config):
         models = []
         for model_path in model_paths:
-            models.append(SpanBasedParser.load_model(model_path, config, fields))
-
+            models.append(SpanBasedParser.load_model(model_path, config))
         device = torch.device('cpu') if config.cpu else torch.device('cuda:0')
-        return cls(models, device)
+        return EnsembleParser(models, device)
 
-    def parse(self, doc):
-        batch = doc.to_batch(self.device)
-        output = self.__call__(batch)
-        tree = output['tree'][0]
-        tree = Tree.fromstring(tree)
-        return tree
+    # def parse(self, doc):
+    #     batch = doc.to_batch(self.device)
+    #     output = self.__call__(batch)
+    #     tree = output['tree'][0]
+    #     tree = Tree.fromstring(tree)
+    #     return tree
 
-    def forward(self, batch):
+    def forward(self, batch: Batch):
         # run embedder
         ensemble_rnn_outputs = []
         for parser in self.parsers:
@@ -61,7 +61,7 @@ class EnsembleParser(nn.Module):
             assert 0 <= left < right <= sentence_length
             if right - left == 1:  # 終了条件
                 tag, word = 'text', str(left)
-                tree = rsttree.LeafParseNode(left, tag, word)
+                tree = LeafParseNode(left, tag, word)
                 return tree, torch.zeros(1, device=self.device).squeeze()
 
             ensemble_split_scores = []
@@ -69,7 +69,7 @@ class EnsembleParser(nn.Module):
                 ensemble_split_scores.append(parser.get_split_scores(left, right))
 
             split_scores = self._ensemble(ensemble_split_scores)
-            split, split_loss = parser.predict_split(split_scores, left, right)
+            split, split_loss = self.parsers[0].predict_split(split_scores, left, right)
 
             ensemble_ns_label_scores = []
             ensemble_rela_label_scores = []
@@ -80,14 +80,14 @@ class EnsembleParser(nn.Module):
 
             ns_label_scores = self._ensemble(ensemble_ns_label_scores)
             rela_label_scores = self._ensemble(ensemble_rela_label_scores)
-            ns, ns_loss = parser.predict_label(ns_label_scores, left, right,
-                                               sentence_length, parser.ns_vocab, 0)
-            rela, rela_loss = parser.predict_label(rela_label_scores, left, right,
-                                                   sentence_length, parser.rela_vocab, 1)
+            ns, ns_loss = self.parsers[0].predict_label(ns_label_scores, left, right,
+                                                        sentence_length, self.parsers[0].ns_vocab, 0)
+            rela, rela_loss = self.parsers[0].predict_label(rela_label_scores, left, right,
+                                                            sentence_length, self.parsers[0].rela_vocab, 1)
 
             left_trees, left_loss = helper(left, split, (ns, rela))
             right_trees, right_loss = helper(split, right, (ns, rela))
-            children = rsttree.InternalParseNode((':'.join((ns, rela)),), [left_trees, right_trees])
+            children = InternalParseNode((':'.join((ns, rela)),), [left_trees, right_trees])
             return children, ns_loss + rela_loss + split_loss + left_loss + right_loss
 
         pred_tree, loss = helper(0, sentence_length, parent_label)
@@ -98,5 +98,4 @@ class EnsembleParser(nn.Module):
         # ensemble_scores: list of scores tensor
         ensemble_scores = [softmax(scores, dim=0) for scores in ensemble_scores]
         scores = torch.sum(torch.stack(ensemble_scores), dim=0)
-        # scores = scores.data.cpu().numpy()  # numpyとして返す
         return scores
