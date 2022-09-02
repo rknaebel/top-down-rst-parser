@@ -84,7 +84,8 @@ class Trainer:
             try:
                 output_dict = model(batch)
             except RuntimeError as e:
-                sys.stderr.write(f">> Error during Training: {e}")
+                # TODO adapt batch size dynamically
+                sys.stderr.write(f"\n>> Error during Training: {e}")
                 continue
             loss = output_dict["loss"]
             if loss.item() == 0:
@@ -110,11 +111,9 @@ class Trainer:
                     output_dict = model(batch)
                 except RuntimeError as e:
                     # TODO adapt batch size dynamically
-                    sys.stderr.write(f">> Error during Validation: {e}")
+                    sys.stderr.write(f"\n>> Error during Validation: {e}")
                     continue
                 pred_trees.extend(output_dict['tree'])
-
-        pred_trees = [Tree.fromstring(tree) for tree in pred_trees]
         gold_trees = [Tree.fromstring(tree.linearize()) for tree in gold_trees]
         score_dict = {}
         for eval_type in ['span', 'ns', 'relation', 'full']:

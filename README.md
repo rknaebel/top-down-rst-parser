@@ -2,14 +2,9 @@
 This repository is the implementation of "Top-down RST Parsing Utilizing Granularity Levels in Documents" published at AAAI 2020.
 
 ## Requirements
-python 3.6 or newer  
-libraries:
-- allennlp==0.9.0
-- h5py==2.10.0
 - nltk==3.5
 - numpy==1.18.4
-- torch==1.5.0
-- torchtext==0.6.0
+- torch==1.7.0
 - tqdm==4.46.0
 
 
@@ -44,9 +39,8 @@ bash script/evaluate.sh
 
 ## Data format
 
-We use RSTDT dataset preprocessed [by Heilman's code](https://github.com/EducationalTestingService/discourse-parsing).
-In our preprocessing, each data take following jsonl format.
-There is sample files of our preprocessing in `data/sample/`.
+The parser is trained on the RST-DT dataset. In the preprocessing, each document file is converted into corresponding
+jsonl format described below:
 
 ```bash
 "doc_id": "wsj_****"
@@ -59,6 +53,8 @@ There is sample files of our preprocessing in `data/sample/`.
 "parent_label": null
 "granularity_type": D2E
 ```
+
+There is sample files of our preprocessing in `data/sample/`.
 
 
 ## Reference

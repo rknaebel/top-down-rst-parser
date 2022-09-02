@@ -1,4 +1,4 @@
-transformers
+transformers==4.21.2
 nltk==3.5
 numpy==1.18.4
 torch==1.7.1
