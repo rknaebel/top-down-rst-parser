@@ -41,7 +41,13 @@ def test(config):
     # model = EnsembleParser.load_model(config.model_path, config)
     model = HierarchicalParser.load_model(config.model_path, config)
     scores = Trainer.valid(model, test_iter)
-    print(scores)
+    print("Evaluation")
+    print("> Number of instances:", len(dataset.items))
+    print("> Relations", dataset.relation_counter)
+    print("    Span:", scores['span'])
+    print("    Nuclearity:", scores['ns'])
+    print("    Relation:", scores['relation'])
+    print("    Full:", scores['full'])
 
     doc_ids = []
     pred_trees = []

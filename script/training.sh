@@ -2,9 +2,14 @@
 set -x
 
 for x2y in d2e d2p d2s p2s s2e; do
-    for i in `seq 1 5`; do
-        python -m rstparser.main train \
-               --elmo-embed \
+    for i in {1..5}; do
+        python3 -m rstparser.main train \
+               --hidden 512 \
+               --epochs 30 \
+               --dropout 0.2 \
+               --bert-model bert-base-cased \
+               --batch-size 8 \
+               --embed-batch-size 32 \
                --gate-embed \
                --parent-label-embed \
                --maximize-metric \

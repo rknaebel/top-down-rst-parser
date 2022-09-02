@@ -3,3 +3,8 @@ nltk==3.5
 numpy==1.18.4
 torch==1.7.1
 tqdm==4.46.0
+spacy<3.0.0
+fastapi==0.80.0
+uvicorn==0.18.3
+jinja2
+conllu==4.5.2
