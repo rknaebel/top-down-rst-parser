@@ -3,6 +3,7 @@ import logging
 from pathlib import Path
 
 import torch
+from tqdm import tqdm
 
 from rstparser.dataset.merge_file import Doc
 from rstparser.networks.hierarchical import HierarchicalParser
@@ -30,7 +31,7 @@ def main():
     else:
         filelist = config.input_doc
 
-    for doc_path in filelist:
+    for doc_path in tqdm(filelist):
         tree_path = (config.output_dir / doc_path.name).with_suffix('.tree')
         logging.debug(f'processing: {doc_path}')
         with torch.no_grad():

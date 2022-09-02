@@ -73,12 +73,19 @@ def read_conll_file(doc_file):
     }
 
 
-def load_rst_dis(source):
-    dis_files = Path(source).glob("*.dis")
+def load_rst_data(source, tree_format='dis'):
+    dis_files = Path(source).glob(f"*.{tree_format}")
     for dis_file in dis_files:
         dis_id = dis_file.stem.split('.', maxsplit=1)[0]
-        with dis_file.open() as fh:
-            edus, tree = rstparser.dataset.tree_utils.preprocess_rst_dis_format(re.sub(r"\s+", " ", fh.read()).strip())
+        if dis_file.exists():
+            with dis_file.open() as fh:
+                if tree_format == "dis":
+                    edus, tree = rstparser.dataset.tree_utils.preprocess_rst_dis_format(
+                        re.sub(r"\s+", " ", fh.read()).strip())
+                elif tree_format == 'tree':
+                    tree = fh.read().replace('\n', '').strip()
+        else:
+            tree = ""
         with dis_file.with_suffix('.conll').open() as fh:
             doc = read_conll_file(fh)
         doc['rst_tree'] = tree
@@ -94,7 +101,7 @@ def load_rst_dis(source):
 @click.option("--random-seed", default=1234567890, type=int)
 @click.option("--divide", is_flag=True)
 def main(source, target, target_split, split_ratio, random_seed, divide):
-    dataset = list(tqdm(map(preprocess, load_rst_dis(source))))
+    dataset = list(tqdm(map(preprocess, load_rst_data(source))))
 
     if target_split:
         random.seed(random_seed)
