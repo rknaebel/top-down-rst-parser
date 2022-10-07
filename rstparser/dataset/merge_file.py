@@ -156,7 +156,7 @@ class Doc:
         tokens = []
         for sent_i, sent in enumerate(conllu.parse_incr(doc_file, fields=conllu.parser.DEFAULT_FIELDS)):
             for tok_i, tok in enumerate(sent):
-                if tok.get('misc') and tok['misc'].get('BeginSeg') == 'YES':
+                if tok_i == 0 or tok.get('misc') and tok['misc'].get('BeginSeg') == 'YES':
                     edu_i += 1
                     edu_starts_paragraph.append('newpar id' in sent.metadata)
                     edu_start_indices.append((sent_i, tok_i, edu_i))

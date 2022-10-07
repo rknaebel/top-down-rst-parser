@@ -35,6 +35,7 @@ class Batch:
         self.edu_len = edu_len
         self.words_len = words_len
         self.elmo_word = elmo_word
+        # TODO check if necessary, otherwise remove
         self.spans = spans
         self.starts_sentence = starts_sentence
         self.starts_paragraph = starts_paragraph

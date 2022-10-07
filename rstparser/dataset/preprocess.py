@@ -1,3 +1,5 @@
+import logging
+
 import conllu
 
 from rstparser.dataset.tree_split import make_text_span
@@ -21,10 +23,9 @@ def preprocess(src):
 
     assert len(tokenized_edu_strings) == len(edu_starts_sentence) == len(edu_starts_paragraph)
 
-    # 文の開始でないのに段落の開始である場合はFalseにする
+    # False if it is the start of a paragraph but not the start of a sentence
     edu_starts_paragraph = [start_s and start_p for start_s, start_p in zip(edu_starts_sentence, edu_starts_paragraph)]
 
-    # hdfファイルに書き出されたベクトルへのindexとして使う
     text_span, _ = make_text_span(tokenized_edu_strings, doc_id=doc_id)
 
     return {
@@ -43,13 +44,13 @@ def preprocess(src):
 def read_conll_file(doc_file):
     indices = []
     gidx = 0
-    pidx = 0
     edu_i = 0
     edu_starts_paragraph = []
     tokens = []
     for sent_i, sent in enumerate(conllu.parse_incr(doc_file, fields=conllu.parser.DEFAULT_FIELDS)):
-        if sent.metadata.get('newpar id'):
-            pidx += 1
+        if len(sent) > 300:
+            logging.warning("Skip sentence: too long.")
+            continue
         for tok_i, tok in enumerate(sent):
             if tok_i == 0 or tok.get('misc') and tok['misc'].get('BeginSeg') == 'YES':
                 edu_i += 1

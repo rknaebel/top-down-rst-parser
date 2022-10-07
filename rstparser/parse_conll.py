@@ -14,12 +14,12 @@ def main():
     parser.add_argument('--cpu', action='store_true')
     parser.add_argument('--hierarchical-type', choices=['d2e', 'd2s2e', 'd2p2s2e'], required=True)
     parser.add_argument('--use-hard-boundary', action='store_true')
-    parser.add_argument('--model-path', required=True, nargs='+')
+    parser.add_argument('--model-paths', required=True, nargs='+')
     parser.add_argument('--input-doc', required=True, nargs='+', type=Path)
     parser.add_argument('--output-dir', default='output', type=Path)
     config = parser.parse_args()
 
-    model = HierarchicalParser.load_model(config.model_path, config)
+    model = HierarchicalParser.load_model(config.model_paths, config)
 
     config.output_dir.mkdir(parents=True, exist_ok=True)
     if len(config.input_doc) == 1:
