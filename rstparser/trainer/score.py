@@ -1,7 +1,7 @@
 import numpy as np
 
 
-class Score():
+class Score:
     def __init__(self, metric, save_minimum=True):
         self.metric = metric
         self.save_minimum = save_minimum

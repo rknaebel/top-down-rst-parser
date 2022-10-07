@@ -202,6 +202,16 @@ class TextEmbedder(nn.Module):
 
         return edu_embeddings
 
+    def embed_sequence(self, raw_inputs, starts_sentence):
+        try:
+            word_embeddings = self.word_embedder(raw_inputs, starts_sentence)
+        except RuntimeError as e:
+            # TODO repair too long inputs
+            # where do they come from - seems only single one
+            sys.stderr.write(f'>> Error: {e}')
+            raise RuntimeError
+        return torch.squeeze(word_embeddings, 1)
+
     def get_embed_size(self):
         if self.use_gate:
             embed_size = self.gate_lstm.lstm.hidden_size
