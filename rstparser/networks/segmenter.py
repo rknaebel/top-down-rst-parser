@@ -152,7 +152,7 @@ class SegmenterEnsemble(nn.Module):
 
 
 class Trainer:
-    def __init__(self, config, model, optimizer, scheduler, dataset):
+    def __init__(self, config, model, optimizer, scheduler, train_dataset, valid_dataset=None):
         self._epochs = config.epochs
         self._disable_tqdm = False
         self._log_file = config.log_file
@@ -162,14 +162,14 @@ class Trainer:
                                           config.model_name)
 
         self._score = Score('f1', save_minimum=False)
-        self.dataset = dataset
-        dataset_length = len(self.dataset)
-        train_size = int(dataset_length * config.data_split)
-        valid_size = dataset_length - train_size
-        train_dataset, valid_dataset = random_split(self.dataset, [train_size, valid_size])
-
-        self._train_iter = DataLoader(train_dataset, batch_size=config.batch_size, collate_fn=Batch.from_samples)
-        self._valid_iter = DataLoader(valid_dataset, batch_size=config.batch_size, collate_fn=Batch.from_samples)
+        if valid_dataset:
+            self.train_dataset = train_dataset
+            self.valid_dataset = valid_dataset
+        else:
+            dataset_length = len(train_dataset)
+            train_size = int(dataset_length * config.data_split)
+            valid_size = dataset_length - train_size
+            self.train_dataset, self.valid_dataset = random_split(self.train_dataset, [train_size, valid_size])
 
         self._model = model
         self._optimizer = optimizer
@@ -177,27 +177,31 @@ class Trainer:
         self._scheduler = scheduler
 
         self._config = config
-        self._start_epoch = 1
+        self._cur_epoch = 1
+        self.batch_size = config.batch_size
 
         # if self._checkpointer.get_latast_checkpoint() is not None:
         #     self.load_checkpoint()
 
-    def load_checkpoint(self):
-        checkpoint_path = self._checkpointer.get_latast_checkpoint()
+    def load_checkpoint(self, best_checkpoint=False):
+        checkpoint_path = self._checkpointer.get_latest_checkpoint(best_checkpoint=best_checkpoint)
         device = torch.device('cpu') if self._config.cpu else torch.device('cuda:0')
         checkpoint = self._checkpointer.restore(checkpoint_path, device)
-        self._start_epoch = checkpoint['epoch'] + 1
+        self._cur_epoch = checkpoint['epoch'] + 1
         self._model.load_state_dict(checkpoint['model'])
         self._optimizer.load_state_dict(checkpoint['optim'])
         self._scheduler.load_state_dict(checkpoint['sched'])
         self._score.load_state_dict(checkpoint['score'])
         print('train from checkpoint: {}'.format(checkpoint_path), file=sys.stderr)
 
-    def run(self):
-        for epoch in range(self._start_epoch, self._epochs + 1):
-            train_loss = self.train(self._model, self._train_iter, self._optimizer,
+    def run(self, epochs=0):
+        run_epochs = epochs if epochs > 0 else self._epochs
+        train_iter = DataLoader(self.train_dataset, batch_size=self.batch_size, collate_fn=Batch.from_samples)
+        valid_iter = DataLoader(self.valid_dataset, batch_size=self.batch_size, collate_fn=Batch.from_samples)
+        for epoch in range(self._cur_epoch, self._cur_epoch + run_epochs):
+            train_loss = self.train(self._model, train_iter, self._optimizer,
                                     self._max_grad_norm, self._disable_tqdm)
-            valid_score = self.valid(self._model, self._valid_iter,
+            valid_score = self.valid(self._model, valid_iter,
                                      # print_every_n_batch=10, print_result=True,
                                      disable_tqdm=self._disable_tqdm)
             self._scheduler.step()
@@ -239,7 +243,8 @@ class Trainer:
         total_loss = 0
         total_norm = 0
         total_cnt, pred_cnt, correct_cnt = 0, 0, 0
-        for batch_i, batch in tqdm(enumerate(_iter), desc='validation', ncols=128, disable=disable_tqdm):
+        for batch_i, batch in tqdm(enumerate(_iter), total=len(_iter), desc='validation',
+                                   ncols=128, disable=disable_tqdm):
             with torch.no_grad():
                 output_dict = model(batch)
                 for tokens, preds, splits in zip(batch.tokens, output_dict['edu_splits'], batch.starts_edu):
@@ -330,12 +335,13 @@ def main():
     config = parser.parse_args()
 
     if config.train_file and config.valid_file:
-        dataset = Dataset([config.train_file, config.valid_file], config.conll_paths)
+        dataset = Dataset([config.train_file], config.conll_paths)
+        valid_dataset = Dataset([config.valid_file])
         model = Segmenter.build_model(config)
 
         optimizer = optim.Adam(model.parameters(), lr=config.lr, weight_decay=config.weight_decay)
         scheduler = optim.lr_scheduler.ExponentialLR(optimizer, config.lr_decay)
-        trainer = Trainer(config, model, optimizer, scheduler, dataset)
+        trainer = Trainer(config, model, optimizer, scheduler, dataset, valid_dataset)
         trainer.run()
     else:
         print("missing train/valid data")

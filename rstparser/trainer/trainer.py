@@ -1,5 +1,6 @@
 import json
 import sys
+from collections import Counter
 from pathlib import Path
 
 import torch
@@ -14,7 +15,7 @@ from rstparser.trainer.score import Score
 
 
 class Trainer:
-    def __init__(self, config, model, optimizer, scheduler, dataset):
+    def __init__(self, config, model, optimizer, scheduler, train_dataset, valid_dataset=None):
         self._epochs = config.epochs
         self._disable_tqdm = config.disable_tqdm
         self._log_file = config.log_file
@@ -25,14 +26,15 @@ class Trainer:
 
         save_minimum = not config.maximize_metric
         self._score = Score(config.metric, save_minimum=save_minimum)
-        self.dataset = dataset
-        dataset_length = len(self.dataset)
-        train_size = int(dataset_length * 0.8)
-        valid_size = dataset_length - train_size
-        train_dataset, valid_dataset = random_split(self.dataset, [train_size, valid_size])
 
-        self._train_iter = DataLoader(train_dataset, batch_size=config.batch_size, collate_fn=Batch.from_samples)
-        self._valid_iter = DataLoader(valid_dataset, batch_size=config.batch_size, collate_fn=Batch.from_samples)
+        if valid_dataset:
+            self.train_dataset = train_dataset
+            self.valid_dataset = valid_dataset
+        else:
+            dataset_length = len(train_dataset)
+            train_size = int(dataset_length * 0.9)
+            valid_size = dataset_length - train_size
+            self.train_dataset, self.valid_dataset = random_split(train_dataset, [train_size, valid_size])
 
         self._model = model
         self._optimizer = optimizer
@@ -57,10 +59,14 @@ class Trainer:
         print('train from checkpoint: {}'.format(checkpoint_path), file=sys.stderr)
 
     def run(self):
-        for epoch in range(self._start_epoch, self._epochs+1):
-            train_loss = self.train(self._model, self._train_iter, self._optimizer,
+        train_iter = DataLoader(self.train_dataset, batch_size=self._config.batch_size, collate_fn=Batch.from_samples,
+                                shuffle=True)
+        valid_iter = DataLoader(self.valid_dataset, batch_size=self._config.batch_size, collate_fn=Batch.from_samples)
+
+        for epoch in range(self._start_epoch, self._epochs + 1):
+            train_loss = self.train(self._model, train_iter, self._optimizer,
                                     self._max_grad_norm, self._disable_tqdm)
-            valid_score = self.valid(self._model, self._valid_iter, self._disable_tqdm)
+            valid_score = self.valid(self._model, valid_iter, self._disable_tqdm)
             self._scheduler.step()
 
             self._score.append(valid_score, epoch)
@@ -107,20 +113,30 @@ class Trainer:
     @staticmethod
     def valid(model, _iter, disable_tqdm=False):
         model.eval()
+        total_loss = 0
+        total_norm = 0
         gold_trees = []
         pred_trees = []
         for batch in tqdm(_iter, desc='validation', ncols=128, disable=disable_tqdm):
             with torch.no_grad():
-                gold_trees.extend(batch.tree)
                 try:
                     output_dict = model(batch)
                 except RuntimeError as e:
                     # TODO adapt batch size dynamically
                     sys.stderr.write(f"\n>> Error during Validation: {e}")
                     continue
+                gold_trees.extend(batch.tree)
                 pred_trees.extend(output_dict['tree'])
+                loss = output_dict["loss"]
+                total_loss += loss.item() * len(batch)
+                total_norm += len(batch)
+
         gold_trees = [Tree.fromstring(tree.linearize()) for tree in gold_trees]
-        score_dict = {}
+        pred_trees = [Tree.fromstring(tree) if isinstance(tree, str) else tree for tree in pred_trees]
+        labels = Counter([tree[p].label().split(":")[1] for tree in pred_trees for p in tree.treepositions()
+                          if not isinstance(tree[p], str) and tree[p].height() > 2])
+        print("> Predicted Relations", labels)
+        score_dict = {'loss': total_loss / total_norm}
         for eval_type in ['span', 'ns', 'relation', 'full']:
             score_dict[eval_type] = rst_parseval(pred_trees, gold_trees, eval_type)
 

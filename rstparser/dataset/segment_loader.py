@@ -13,7 +13,7 @@ class Sample:
     def __init__(self, doc_id, tokens, starts_edu):
         self.doc_id = doc_id
         self.tokens = tokens
-        self.starts_edu = starts_edu
+        self.starts_edu = np.array(starts_edu, dtype=bool)
 
     def __str__(self):
         return f"{self.doc_id}: " + " ".join(f"{t}-{int(s)}" for t, s in zip(self.tokens, self.starts_edu))
@@ -31,9 +31,12 @@ class Batch:
         return Batch(
             doc_id=[s.doc_id for s in samples],
             sents_len=torch.tensor([len(s.tokens) for s in samples], dtype=torch.int16),
-            tokens=[[s.tokens] for s in samples],
+            tokens=[(s.tokens,) for s in samples],
             starts_edu=[torch.from_numpy(s.starts_edu).to(torch.float32) for s in samples]
         )
+
+    def __str__(self):
+        return str([self.doc_id, self.tokens, self.starts_edu])
 
     def __len__(self):
         return len(self.doc_id)
@@ -44,20 +47,17 @@ class Dataset(torch.utils.data.Dataset):
     def __init__(self, data_files, conll_paths=()):
         self.items = []
         dataset = [json.loads(line) for data_file in data_files for line in open(data_file)]
-        if len(conll_paths) > 0:
-            for conll_path in conll_paths:
-                conll_path = Path(conll_path)
-                for conll_i, conll_file in enumerate(conll_path.glob('*.conll')):
-                    if conll_i > 200:
-                        break
-                    doc = read_conll_file(conll_file.open())
-                    doc['doc_id'] = conll_path.name
-                    try:
-                        doc = preprocess(doc)
-                    except:
-                        print(doc)
-                        exit(1)
-                    dataset.append(doc)
+        for conll_path in conll_paths:
+            conll_path = Path(conll_path)
+            for conll_i, conll_file in enumerate(conll_path.glob('*.conll')):
+                doc = read_conll_file(conll_file.open())
+                doc['doc_id'] = conll_path.name
+                try:
+                    doc = preprocess(doc)
+                except:
+                    print(doc)
+                    exit(1)
+                dataset.append(doc)
 
         for item in dataset:
             tokens = []
