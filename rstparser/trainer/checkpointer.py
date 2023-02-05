@@ -59,10 +59,12 @@ class Checkpointer:
     def get_best_model_path(self):
         return self._best_model_path
 
-    def get_latast_checkpoint(self):
-        model_path = glob.glob(os.path.join(
-            self._serialization_dir,
-            "{}_state_epoch_{}.th".format(self.prefix, '*')))
+    def get_latest_checkpoint(self, best_checkpoint=False):
+        if best_checkpoint:
+            fname = "{}_best_state_epoch_{}.th".format(self.prefix, '*')
+        else:
+            fname = "{}_state_epoch_{}.th".format(self.prefix, '*')
+        model_path = glob.glob(os.path.join(self._serialization_dir, fname))
 
         if len(model_path) == 0:
             return None

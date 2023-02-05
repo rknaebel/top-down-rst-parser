@@ -41,3 +41,6 @@ class Score:
         self.best_score = state_dict['best_score']
         self.best_epoch = state_dict['best_epoch']
         self.scores = state_dict['scores']
+
+    def epochs_since_improvement(self):
+        return len(self.scores) - self.best_epoch

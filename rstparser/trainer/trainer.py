@@ -42,11 +42,11 @@ class Trainer:
         self._config = config
         self._start_epoch = 1
 
-        if self._checkpointer.get_latast_checkpoint() is not None:
+        if self._checkpointer.get_latest_checkpoint() is not None:
             self.load_checkpoint()
 
     def load_checkpoint(self):
-        checkpoint_path = self._checkpointer.get_latast_checkpoint()
+        checkpoint_path = self._checkpointer.get_latest_checkpoint()
         device = torch.device('cpu') if self._config.cpu else torch.device('cuda:0')
         checkpoint = self._checkpointer.restore(checkpoint_path, device)
         self._start_epoch = checkpoint['epoch'] + 1
@@ -71,6 +71,11 @@ class Trainer:
                 'valid/score': valid_score,
             }
             self._report(epoch, scores)
+
+            print(f"> Epochs since last improvement {self._score.epochs_since_improvement()}.")
+            if self._score.epochs_since_improvement() > 5:
+                print(f"... Early stopping.")
+                break
 
         return
 
