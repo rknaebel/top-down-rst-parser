@@ -379,7 +379,7 @@ def preprocess_rst_dis_format(rst_tree_str):
     tree = binarize(tree)
     # tree = re_categorize(tree)
     tree = convert2labelled_attachment_tree(tree)
-    assert len(edus) == len(tree.leaves())
+    assert len(edus) == len(tree.leaves()), f"\nEDUS\n{edus}\nTREE LEAVES\n{tree.leaves()}"
     return edus, tree._pformat_flat("", "()", False)
 
 

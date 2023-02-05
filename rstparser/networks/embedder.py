@@ -50,7 +50,6 @@ class BertEmbeddingModel(nn.Module):
             "-RCB-": "}",
             "n't": "not"
         }
-        self.cache = dict()
 
     @staticmethod
     def build_model(config):

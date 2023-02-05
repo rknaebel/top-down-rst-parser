@@ -135,49 +135,6 @@ class LeafParseNode(ParseNode):
         return LeafTreebankNode(self.tag, self.word)
 
 
-def load_trees(path, strip_top=True):
-    with open(path) as infile:
-        tokens = infile.read().replace("(", " ( ").replace(")", " ) ").split()
-
-    def helper(index):
-        trees = []
-
-        while index < len(tokens) and tokens[index] == "(":
-            paren_count = 0
-            while tokens[index] == "(":
-                index += 1
-                paren_count += 1
-
-            label = tokens[index]
-            index += 1
-
-            if tokens[index] == "(":
-                children, index = helper(index)
-                trees.append(InternalTreebankNode(label, children))
-            else:
-                word = tokens[index]
-                index += 1
-                trees.append(LeafTreebankNode(label, word))
-
-            while paren_count > 0:
-                assert tokens[index] == ")"
-                index += 1
-                paren_count -= 1
-
-        return trees, index
-
-    trees, index = helper(0)
-    assert index == len(tokens)
-
-    if strip_top:
-        for i, tree in enumerate(trees):
-            if tree.label == "TOP":
-                assert len(tree.children) == 1
-                trees[i] = tree.children[0]
-
-    return trees
-
-
 def load_tree_from_string(tree_string):
     tokens = tree_string.replace("(", " ( ").replace(")", " ) ").split()
 
