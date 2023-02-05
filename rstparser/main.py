@@ -1,11 +1,9 @@
-import torch
 import torch.optim as optim
-from nltk import Tree
 from torch.utils.data import DataLoader
 
 from rstparser.config import load_config
 from rstparser.dataset.data_loader import Dataset, Batch
-from rstparser.networks.hierarchical import HierarchicalParser
+from rstparser.networks.ensemble import EnsembleParser
 from rstparser.networks.parser import SpanBasedParser
 from rstparser.trainer.trainer import Trainer
 
@@ -24,7 +22,7 @@ def main():
 
 
 def train(config):
-    dataset = Dataset([config.train_file, config.valid_file], config)
+    dataset = Dataset(config.train_file, config)
     ns_vocab, rel_vocab = dataset.get_vocabs(['<pad>'])
     model = SpanBasedParser.build_model(config, ns_vocab, rel_vocab)
     optimizer = {'adam': optim.Adam, 'sgd': optim.SGD}[config.optimizer](
@@ -43,27 +41,11 @@ def test(config):
     scores = Trainer.valid(model, test_iter)
     print("Evaluation")
     print("> Number of instances:", len(dataset.items))
-    print("> Relations", dataset.relation_counter)
+    print("> Dataset Relations", dataset.relation_counter)
     print("    Span:", scores['span'])
     print("    Nuclearity:", scores['ns'])
     print("    Relation:", scores['relation'])
     print("    Full:", scores['full'])
-
-    doc_ids = []
-    pred_trees = []
-    for batch in test_iter:
-        with torch.no_grad():
-            output_dict = model(batch)
-
-        doc_ids.extend(batch.doc_id)
-        pred_trees.extend(output_dict['tree'])
-
-    config.output_dir.mkdir(parents=True, exist_ok=True)
-    pred_trees = [Tree.fromstring(tree) for tree in pred_trees]
-    for doc_id, tree in zip(doc_ids, pred_trees):
-        tree_path = config.output_dir / '{}.tree'.format(doc_id)
-        with open(tree_path, 'w') as f:
-            print(tree, file=f)
 
 
 if __name__ == '__main__':

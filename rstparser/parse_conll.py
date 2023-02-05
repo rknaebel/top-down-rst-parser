@@ -1,5 +1,5 @@
 import argparse
-import logging
+import sys
 from pathlib import Path
 
 import torch
@@ -32,11 +32,20 @@ def main():
         filelist = config.input_doc
 
     for doc_path in tqdm(filelist):
-        tree_path = (config.output_dir / doc_path.name).with_suffix('.tree')
-        logging.debug(f'processing: {doc_path}')
+        tree_path = Path(config.output_dir / doc_path.name).with_suffix('.tree')
+        if tree_path.exists() and tree_path.stat().st_size > 100:
+            continue
         with torch.no_grad():
-            doc = Doc.from_conll_file(doc_path.open())
-            tree = model.parse(doc)
+            try:
+                doc = Doc.from_conll_file(doc_path.open())
+            except ValueError as e:
+                sys.stderr.write(f"Error: {e} (skip)")
+                continue
+            try:
+                tree = model.parse(doc)
+            except RuntimeError as e:
+                sys.stderr.write(f"Runtime Error: {e} at document {doc_path.name}")
+                exit(1)
             with open(tree_path, 'w') as f:
                 f.write(tree.pformat(margin=256))
 

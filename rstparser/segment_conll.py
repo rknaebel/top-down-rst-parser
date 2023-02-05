@@ -45,11 +45,13 @@ def main():
 
     for doc_path in tqdm(filelist):
         logging.debug(f'processing: {doc_path}')
-        output_path = (config.output_dir / doc_path.name).with_suffix('.conll')
+        output_path: Path = (config.output_dir / doc_path.name).with_suffix('.conll')
+        if output_path.exists() and output_path.stat().st_size > 100:
+            continue
         with torch.no_grad():
             with open(output_path, 'w') as f:
                 iter_sents = conllu.parse_incr(doc_path.open(), fields=conllu.parser.DEFAULT_FIELDS)
-                iter_sents = filter(lambda d: len(d) < 300, iter_sents)
+                iter_sents = filter(lambda d: len(d) < 300 and all(len(t['form']) < 150 for t in d), iter_sents)
                 while True:
                     sents_batch = list(itertools.islice(iter_sents, config.batch_size))
                     if not len(sents_batch):

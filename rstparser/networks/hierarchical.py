@@ -49,7 +49,7 @@ class HierarchicalParser(nn.Module):
 
         return HierarchicalParser(parsers, config.hierarchical_type, device)
 
-    def parse(self, doc):
+    def parse(self, doc) -> Tree:
         output = self(doc)
         tree = output['tree'][0]
         return tree
@@ -100,6 +100,8 @@ class HierarchicalParser(nn.Module):
             batch = doc.to_batch()
             d2e_tree = self.d2e_parser(batch)['tree'][0]
             d2e_tree = Tree.fromstring(d2e_tree)
+        else:
+            raise ValueError('Unknown hierarchical type')
 
         return {'tree': [d2e_tree]}
 

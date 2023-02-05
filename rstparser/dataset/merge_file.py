@@ -22,7 +22,7 @@ class Doc:
         txt = '\n'.join([tokens, edu_flags, sent_flags, para_flags, label])
         return txt
 
-    def to_batch(self, parent_label=None, x2y='d2e', index=0):
+    def to_batch(self, parent_label=None, x2y='d2e', index=0, no_batch=False):
         start_offset = 0
 
         if x2y in ['d2e', 'd2p', 'd2s']:
@@ -35,7 +35,7 @@ class Doc:
                 starts_xxx = self.starts_sentence
             else:
                 starts_xxx = self.starts_paragraph
-        elif x2y in ['p2s', 's2e']:
+        elif x2y in ['p2s', 'p2e', 's2e']:
             def get_span(hierarchical_type, word_starts_sentence, word_starts_paragraph, index):
                 if hierarchical_type.startswith('p'):
                     flags = word_starts_paragraph
@@ -69,7 +69,7 @@ class Doc:
             else:
                 starts_xxx = self.starts_edu[start:end]
         else:
-            raise ValueError()
+            raise ValueError('Unknown hierarchical type')
         # tokenized_strings: List of edus
         # raw_tokenized_strings: List of edus splitted by white-space
         # starts_*: List of bool value representing start of *
@@ -91,7 +91,10 @@ class Doc:
             starts_paragraph=starts_paragraph,
             parent_label=parent_label,
         )
-        return Batch.from_samples([example])
+        if no_batch:
+            return example
+        else:
+            return Batch.from_samples([example])
 
     def make_edu(self, tokens, is_starts):
         assert len(tokens) == len(is_starts), f"{len(tokens)} -- {len(is_starts)}"

@@ -39,8 +39,8 @@ def load_config():
         model_settings.add_argument('--parent-label-embed', action='store_true')
 
         path_settings = parser.add_argument_group('path settings')
-        path_settings.add_argument('--train-file', required=True)
-        path_settings.add_argument('--valid-file', required=True)
+        path_settings.add_argument('--train-file', nargs='+', required=True)
+        # path_settings.add_argument('--valid-file', required=True)
         path_settings.add_argument('--test-file', default=None)
         path_settings.add_argument('--serialization-dir', default='models/', type=Path)
         path_settings.add_argument('--keep-all-serialized-models', action='store_true')

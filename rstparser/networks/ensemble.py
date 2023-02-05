@@ -11,10 +11,12 @@ from rstparser.networks.parser import SpanBasedParser
 
 
 class EnsembleParser(nn.Module):
-    def __init__(self, parsers, device):
+    def __init__(self, parsers: List[SpanBasedParser], device):
         super(EnsembleParser, self).__init__()
         self.parsers: List[SpanBasedParser] = parsers
         self.device = device
+        assert len(set([p.hierarchical_type for p in parsers])) == 1, "Different parser types in ensemble."
+        self.hierarchical_type = parsers[0].hierarchical_type
 
     @staticmethod
     def load_model(model_paths, config):
@@ -24,12 +26,12 @@ class EnsembleParser(nn.Module):
         device = torch.device('cpu') if config.cpu else torch.device('cuda:0')
         return EnsembleParser(models, device)
 
-    # def parse(self, doc):
-    #     batch = doc.to_batch(self.device)
-    #     output = self.__call__(batch)
-    #     tree = output['tree'][0]
-    #     tree = Tree.fromstring(tree)
-    #     return tree
+    def parse(self, doc, parent_label=None, index=0) -> str:
+        with torch.no_grad():
+            batch = doc.to_batch(parent_label=parent_label, x2y=self.hierarchical_type, index=index)
+            output = self.forward(batch)
+            tree = output['tree'][0]
+        return tree
 
     def forward(self, batch: Batch):
         # run embedder
@@ -39,15 +41,22 @@ class EnsembleParser(nn.Module):
 
         # run top-down parser
         pred_trees = []
+        losses = []
         for i in range(len(batch)):
-            tree, _ = self.ensemble_greedy_tree(
+            tree, loss = self.ensemble_greedy_tree(
                 [rnn_outputs[i] for rnn_outputs in ensemble_rnn_outputs],
                 batch.starts_sentence[i],
                 batch.starts_paragraph[i],
                 batch.parent_label[i])
+            losses.append(loss)
             pred_trees.append(tree.convert().linearize())
 
-        return {'tree': pred_trees}
+        loss = torch.mean(torch.stack(losses))
+
+        return {
+            'loss': loss,
+            'tree': pred_trees
+        }
 
     def ensemble_greedy_tree(self, ensemble_rnn_output, starts_sentence, starts_paragraph, parent_label):
         sentence_length = len(ensemble_rnn_output[0])  # no padded

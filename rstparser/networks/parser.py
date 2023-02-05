@@ -92,8 +92,8 @@ class SpanBasedParser(nn.Module):
         model.eval()
         return model
 
-    def parse(self, doc):
-        batch = doc.to_batch(self.device)
+    def parse(self, doc, parent_label=None, index=0) -> str:
+        batch = doc.to_batch(parent_label=parent_label, x2y=self.hierarchical_type, index=index)
         output = self.forward(batch)
         tree = output['tree'][0]
         return tree
@@ -143,7 +143,11 @@ class SpanBasedParser(nn.Module):
                 return tree, torch.zeros(1, device=self.device).squeeze()
 
             split_scores = self.get_split_scores(left, right)
-            split, split_loss = self.predict_split(split_scores, left, right)
+            try:
+                split, split_loss = self.predict_split(split_scores, left, right)
+            except Exception as e:
+                print("\nERROR at", gold_tree, e, "\n", split_scores, left, right)
+                exit(1)
 
             feature = self.get_feature_embedding(left, right, split, parent_label)
             ns_label_scores = self.f_ns(feature)
@@ -168,7 +172,7 @@ class SpanBasedParser(nn.Module):
 
         pred_tree, loss = helper(0, sentence_length, parent_label)
         if self.training:
-            assert gold_tree.convert().linearize() == pred_tree.convert().linearize()
+            assert gold_tree.convert().linearize() == pred_tree.convert().linearize(), f"Gold:{gold_tree.convert().linearize()} PRED:{pred_tree.convert().linearize()}"
         return pred_tree, loss
 
     def get_split_scores(self, left, right):
