@@ -2,6 +2,7 @@ import json
 import random
 import re
 from pathlib import Path
+from pprint import pprint
 
 import click
 from tqdm import tqdm
@@ -26,6 +27,14 @@ def load_rst_data(source, tree_format='dis'):
             tree = ""
         with dis_file.with_suffix('.conll').open() as fh:
             doc = read_conll_file(fh)
+        if not len(edus) == len(doc['edu_start_indices']):
+            print(f"{dis_id}: {len(edus)} {len(doc['edu_start_indices'])}")
+            print("LENGTH SENTS", len(doc['tokens']))
+            print("DIS EDUS:")
+            pprint(edus, width=120)
+            print("DOC INDICES:")
+            pprint(doc['edu_start_indices'], width=120)
+            exit(1)
         doc['rst_tree'] = tree
         doc['doc_id'] = dis_id
         yield doc

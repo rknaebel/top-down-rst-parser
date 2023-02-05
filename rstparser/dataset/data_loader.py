@@ -7,6 +7,7 @@ import torch
 import torch.utils.data
 from nltk import Tree
 
+from rstparser.dataset.preprocess import read_conll_file, preprocess
 from rstparser.dataset.tree_split import tree_division
 from rstparser.dataset.trees import load_tree_from_string
 
@@ -15,7 +16,7 @@ class Sample:
     def __init__(self, doc_id, labelled_attachment_tree, raw_tokenized_strings, spans, starts_sentence,
                  starts_paragraph, parent_label):
         self.doc_id = doc_id
-        self.tree = load_tree_from_string(labelled_attachment_tree)
+        self.tree = load_tree_from_string(labelled_attachment_tree) if labelled_attachment_tree else None
         self.word = (None, len(raw_tokenized_strings), np.array([len(e) for e in raw_tokenized_strings]))
         self.edu_len = len(raw_tokenized_strings)
         self.words_len = np.array([len(e) for e in raw_tokenized_strings])
@@ -24,6 +25,8 @@ class Sample:
         self.starts_sentence = starts_sentence
         self.starts_paragraph = starts_paragraph
         self.parent_label = parent_label
+
+        # assert len(list(self.tree.leaves())) == self.edu_len == len(self.spans), f"{len(list(self.tree.leaves()))} == {self.edu_len} == {len(self.spans)}"
 
 
 class Batch:
@@ -70,7 +73,7 @@ class Batch:
 
 class Dataset(torch.utils.data.Dataset):
 
-    def __init__(self, data_files, config):
+    def __init__(self, data_files, config, conll_paths=()):
         self.ns_counter = Counter()
         self.relation_counter = Counter()
 
@@ -79,7 +82,17 @@ class Dataset(torch.utils.data.Dataset):
         for item in dataset:
             self.count_relation_properties(item['labelled_attachment_tree'])
 
-        if config.hierarchical_type == 'd2e':
+        for conll_path in conll_paths:
+            doc = read_conll_file(open(conll_path))
+            doc['doc_id'] = conll_path.name
+            try:
+                doc = preprocess(doc)
+            except:
+                print(doc)
+                exit(1)
+            dataset.append(doc)
+
+        if config.hierarchical_type[0] == 'd' and config.hierarchical_type[-1] == 'e':
             for item in dataset:
                 self.items.append(Sample(item['doc_id'], item['labelled_attachment_tree'],
                                          item['raw_tokenized_strings'], item['spans'], item['starts_sentence'],

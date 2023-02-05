@@ -1,4 +1,4 @@
-import logging
+from typing import List
 
 import conllu
 
@@ -6,14 +6,14 @@ from rstparser.dataset.tree_split import make_text_span
 
 
 def preprocess(src):
-    doc_id = src['doc_id']
-    tokenized_edu_strings = []
-    edu_starts_sentence = []
-    edu_starts_paragraph = src['edu_starts_paragraph']
+    doc_id: str = src['doc_id']
+    tokenized_edu_strings: List[str] = []
+    edu_starts_sentence: List[bool] = []
+    edu_starts_paragraph: List[bool] = src['edu_starts_paragraph']
     tokens = src['tokens']
     edu_start_indices = src['edu_start_indices']
-    sentence_id, token_id, edu_id = edu_start_indices[0]
-    for next_sentence_id, next_token_id, next_edu_id in edu_start_indices[1:] + [(-1, -1, -1)]:
+    sentence_id, token_id = edu_start_indices[0]
+    for next_sentence_id, next_token_id in edu_start_indices[1:] + [(-1, -1)]:
         end_token_id = next_token_id if token_id < next_token_id else None
         tokenized_edu_strings.append(' '.join(tokens[sentence_id][token_id: end_token_id]))
         edu_starts_sentence.append(token_id == 0)
@@ -43,20 +43,16 @@ def preprocess(src):
 
 def read_conll_file(doc_file):
     indices = []
-    gidx = 0
-    edu_i = 0
     edu_starts_paragraph = []
     tokens = []
     for sent_i, sent in enumerate(conllu.parse_incr(doc_file, fields=conllu.parser.DEFAULT_FIELDS)):
-        if len(sent) > 300:
-            logging.warning("Skip sentence: too long.")
-            continue
         for tok_i, tok in enumerate(sent):
             if tok_i == 0 or tok.get('misc') and tok['misc'].get('BeginSeg') == 'YES':
-                edu_i += 1
                 edu_starts_paragraph.append('newpar id' in sent.metadata)
-                indices.append((sent_i, tok_i, edu_i))
-            gidx += 1
+                indices.append((sent_i, tok_i))
+            # TODO again preprocess wsj!
+            elif tok_i == 0:
+                print('inconsistent...', doc_file, sent_i, tok_i, tok)
         tokens.append([tok['form'] for tok in sent])
     return {
         'tokens': tokens,
