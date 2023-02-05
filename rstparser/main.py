@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader
 
 from rstparser.config import load_config
 from rstparser.dataset.data_loader import Dataset, Batch
-from rstparser.networks.ensemble import EnsembleParser
+from rstparser.networks.hierarchical import HierarchicalParser
 from rstparser.networks.parser import SpanBasedParser
 from rstparser.trainer.trainer import Trainer
 
