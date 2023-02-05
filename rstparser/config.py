@@ -55,7 +55,9 @@ def load_config():
     def test_config(parser):
         test_settings = parser.add_argument_group('test settings')
         test_settings.add_argument('--cpu', action='store_true')
-        test_settings.add_argument('--hierarchical-type', choices=['d2e', 'd2s2e', 'd2p2s2e'], required=True)
+        test_settings.add_argument('--hierarchical-type',
+                                   choices=['d2e', 'd2s', 'd2p', 'p2e', 'p2s', 's2e', 'd2s2e', 'd2p2s2e'],
+                                   required=True)
         test_settings.add_argument('--use-hard-boundary', action='store_true')
         test_settings.add_argument('--batch-size', type=int, default=1)
         test_settings.add_argument('--embed-batch-size', type=int, default=32)

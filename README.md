@@ -1,50 +1,30 @@
-# Top-Down RST Parser
-This repository is the implementation of "Top-down RST Parsing Utilizing Granularity Levels in Documents" published at AAAI 2020.
+# Neural-based Discourse Parser
 
-## Requirements
-- nltk==3.5
-- numpy==1.18.4
-- torch==1.7.0
-- tqdm==4.46.0
+This repository is based
+on ["Top-down RST Parsing Utilizing Granularity Levels in Documents"](https://ojs.aaai.org/index.php/AAAI/article/view/6321)
+.
 
+## Training
 
-## Usage
-We use [trees.py](https://github.com/mitchellstern/minimal-span-parser/blob/master/src/trees.py) in our code.
-Please put it in `src/dataset/`.
+### Data Preprocessing
 
-### Preprocess
-Before running a script, you need to add a path to Dataset preprocessed by
-[Heilman's code](https://github.com/EducationalTestingService/discourse-parsing) into `script/preprocess.sh`.
+Before running a script, you should organize files into a common SOURCE directory. This directory contains documents
+in [CONLL-U format](https://universaldependencies.org/format.html) where the last column MISC contains information about
+discourse segmentation. The field 'BeginSeg=YES' is set, if a new elementary discourse unit (EDU) begins. This
+annotations must strictly correlate with the number of EDUs in the annotation file. For RST annotations, there are two
+options:
 
-```bash
-convert_rst_discourse_tb /data/rst_discourse_treebank /data/pennTreebank/
-make_traindev_split
-bash script/preprocess.sh
-```
-
-### Training
-Train the model 5 times for D2E, D2P, D2S, P2S, P2E and S2E.
-If you need to select a GPU device, please use an environment variable `CUDA_VISIBLE_DEVICES`.
+1. _file.dis_: files corresponding to the original RST-DT tree format
+2. _file.tree_: files corresponding to the labeled attachment tree format, used in this system
 
 ```bash
-bash script/training.sh
+python -m rstparser.cli.preprocess SOURCE DESTINATION
 ```
 
-### Evaluating
-Evaluate on test set for D2E, D2S2E and D2P2S2E with 5 ensemble setting.
-
-```bash
-bash script/evaluate.sh
-```
-
-## Data format
-
-The parser is trained on the RST-DT dataset. In the preprocessing, each document file is converted into corresponding
-jsonl format described below:
+During preprocessing, each document file is converted into corresponding jsonl format described below:
 
 ```bash
 "doc_id": "wsj_****"
-"rst_tree": "(ROOT (nucleus:Span (text 0) (satellite:Elaboration (text 1))))"
 "labelled_attachment_tree": "(nucleus-satellite:Elaboration (text 0) (text 1))"
 "tokenized_strings": ["first sentence corresponding to text 1 .", "and this is second sentence ."]
 "raw_tokenized_strings": ["first", "sentence", "corresponding", "to", "text", "1", ".", "and", "this", "is", "second", "sentence", "."]
@@ -54,18 +34,39 @@ jsonl format described below:
 "granularity_type": D2E
 ```
 
-There is sample files of our preprocessing in `data/sample/`.
+There are sample files of our preprocessing in `data/sample/`.
 
+### Segmentation
 
-## Reference
+Train a segmentation model:
 
+```bash
+python -m rstparser.networks.segmenter --train-file rst_data/train.jsonl --valid-file rst_data/valid.jsonl --batch-size 64 --hidden 128 --bert-model roberta-base --epochs 20 --test-file rst_data/test.jsonl --serialization-dir models/seg.t3
 ```
-@inproceedings{Kobayashi2020TopDownRP,
-  title={Top-Down RST Parsing Utilizing Granularity Levels in Documents},
-  author={Naoki Kobayashi and Tsutomu Hirao and Hidetaka Kamigaito and Manabu Okumura and Masaaki Nagata},
-  booktitle={Proceedings of the 2020 Conference on Artificial Intelligence for the American (AAAI)},
-  month={sep},
-  year={2020},
-  pages={8099--8106}
-}
+
+Test segmentation model:
+
+```bash
+python -m rstparser.networks.segmenter --batch-size 64 --test-file rst_data/test.jsonl --model-paths models/seg.*/model_best_*
 ```
+
+### Top-Down
+
+Train the model 5 times for D2E, D2P, D2S, P2S, P2E and S2E. If you need to select a GPU device, please use an
+environment variable `CUDA_VISIBLE_DEVICES`.
+
+```bash
+bash script/training.sh
+```
+
+Evaluate on test set for D2E, D2S2E and D2P2S2E with 5 ensemble setting.
+
+```bash
+bash script/evaluate.sh
+```
+
+## Further References
+
+- [Top-Down RST Parsing Utilizing Granularity Levels in Documents](https://ojs.aaai.org/index.php/AAAI/article/view/6321)
+- [Toward Fast and Accurate Neural Discourse Segmentation](https://aclanthology.org/D18-1116/)
+- [Improving Neural RST Parsing Model with Silver Agreement Subtrees](https://aclanthology.org/2021.naacl-main.127/)
