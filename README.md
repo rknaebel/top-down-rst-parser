@@ -65,6 +65,26 @@ Evaluate on test set for D2E, D2S2E and D2P2S2E with 5 ensemble setting.
 bash script/evaluate.sh
 ```
 
+## Prediction
+
+Parameters:
+
+- MODELPATH refers to one or more models to load.
+- SOURCE contains conll files that will be segmented.
+- DESTINATION is the directory where segmented conll files will be stored.
+
+Segmentation
+
+```bash
+python -m rstparser.segment_conll --model-paths MODELPATH --input-doc SOURCE --output-dir DESTINATION
+```
+
+RST Parsing
+
+```bash
+python3 -m rstparser.parse_conll --model-path MODELPATH --hierarchical-type d2e --input-doc SOURCE --output-dir DESTINATION
+```
+
 ## Further References
 
 - [Top-Down RST Parsing Utilizing Granularity Levels in Documents](https://ojs.aaai.org/index.php/AAAI/article/view/6321)
