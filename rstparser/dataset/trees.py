@@ -1,7 +1,7 @@
 import collections.abc
 
 
-class TreebankNode(object):
+class TreebankNode:
     pass
 
 
@@ -15,7 +15,7 @@ class InternalTreebankNode(TreebankNode):
         assert children
         self.children = tuple(children)
 
-    def linearize(self):
+    def linearize(self) -> str:
         return "({} {})".format(
             self.label, " ".join(child.linearize() for child in self.children))
 
@@ -48,7 +48,7 @@ class LeafTreebankNode(TreebankNode):
         assert isinstance(word, str)
         self.word = word
 
-    def linearize(self):
+    def linearize(self) -> str:
         return "({} {})".format(self.tag, self.word)
 
     def leaves(self):
@@ -58,7 +58,7 @@ class LeafTreebankNode(TreebankNode):
         return LeafParseNode(index, self.tag, self.word)
 
 
-class ParseNode(object):
+class ParseNode:
     pass
 
 

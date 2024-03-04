@@ -49,9 +49,10 @@ class HierarchicalParser(nn.Module):
 
         return HierarchicalParser(parsers, config.hierarchical_type, device)
 
-    def parse(self, doc) -> Tree:
-        output = self(doc)
-        tree = output['tree'][0]
+    def parse(self, doc) -> str:
+        with torch.no_grad():
+            output = self.forward(doc)
+        tree = output['tree'][0]._pformat_flat("", "()", False)
         return tree
 
     def forward(self, batch):

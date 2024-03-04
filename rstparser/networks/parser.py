@@ -1,7 +1,9 @@
 import functools
+import sys
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 import rstparser.dataset.trees as rsttree
 from rstparser.dataset.data_loader import Batch
@@ -78,7 +80,7 @@ class SpanBasedParser(nn.Module):
 
     @staticmethod
     def load_model(model_path, config):
-        print('load model: {}'.format(model_path))
+        print('load model: {}'.format(model_path), file=sys.stderr)
         device = torch.device('cpu') if config.cpu else torch.device('cuda:0')
         model_state = Checkpointer.restore(model_path, device=device)
         model_config = model_state['config']
@@ -96,11 +98,13 @@ class SpanBasedParser(nn.Module):
         batch = doc.to_batch(parent_label=parent_label, x2y=self.hierarchical_type, index=index)
         output = self.forward(batch)
         tree = output['tree'][0]
+        # prob = output['probs'][0]
         return tree
 
     def forward(self, batch):
         rnn_outputs = self.embed(batch)
         losses = []
+        confidences = [0]
         pred_trees = []
         for i in range(len(batch)):
             tree, loss = self.greedy_tree(
@@ -109,6 +113,12 @@ class SpanBasedParser(nn.Module):
                 batch.starts_paragraph[i],
                 batch.parent_label[i],
                 batch.tree[i].convert() if batch.tree and self.training else None)
+            # TODO WIP add confidence scores for predictions (prob based filtering)
+            if not self.training:
+                # confidences.append(loss.cpu().numpy().mean(0))
+                loss = torch.zeros(1)
+            # else:
+            #     confidences.append(np.zeros(3))
             losses.append(loss)
             pred_trees.append(tree.convert().linearize())
 
@@ -117,6 +127,7 @@ class SpanBasedParser(nn.Module):
         return {
             'loss': loss,
             'tree': pred_trees,
+            'probs': confidences
         }
 
     def embed(self, batch: Batch):
@@ -137,7 +148,7 @@ class SpanBasedParser(nn.Module):
         @functools.lru_cache(maxsize=None)
         def helper(left, right, parent_label=None):
             assert 0 <= left < right <= sentence_length
-            if right - left == 1:  # 終了条件
+            if right - left == 1:  # final state condition
                 tag, word = 'text', str(left)
                 tree = rsttree.LeafParseNode(left, tag, word)
                 return tree, torch.zeros(1, device=self.device).squeeze()
@@ -146,7 +157,7 @@ class SpanBasedParser(nn.Module):
             try:
                 split, split_loss = self.predict_split(split_scores, left, right)
             except Exception as e:
-                print("\nERROR at", gold_tree, e, "\n", split_scores, left, right)
+                print("\nERROR at", gold_tree, e, "\n", split_scores, left, right, file=sys.stderr)
                 exit(1)
 
             feature = self.get_feature_embedding(left, right, split, parent_label)
@@ -161,12 +172,19 @@ class SpanBasedParser(nn.Module):
             right_trees, right_loss = helper(split, right, (ns, rela))
             children = rsttree.InternalParseNode((':'.join((ns, rela)),), [left_trees, right_trees])
 
-            if self.label_type == 'skelton':
-                loss = split_loss + left_loss + right_loss
-            elif self.label_type == 'ns':
-                loss = ns_loss + split_loss + left_loss + right_loss
-            elif self.label_type == 'full':
-                loss = ns_loss + rela_loss + split_loss + left_loss + right_loss
+            if self.training:
+                if self.label_type == 'skelton':
+                    loss = split_loss + left_loss + right_loss
+                elif self.label_type == 'ns':
+                    loss = ns_loss + split_loss + left_loss + right_loss
+                elif self.label_type == 'full':
+                    loss = ns_loss + rela_loss + split_loss + left_loss + right_loss
+            else:
+                if not isinstance(left_loss, list):
+                    left_loss = []
+                if not isinstance(right_loss, list):
+                    right_loss = []
+                loss = [[split_loss.item(), ns_loss.item(), rela_loss.item()]] + left_loss + right_loss
 
             return children, loss
 
@@ -284,6 +302,7 @@ class SpanBasedParser(nn.Module):
                 if argmax_split != oracle_split else torch.zeros(1, device=self.device).squeeze())
         else:
             split = argmax_split
+            split_scores = F.softmax(split_scores, dim=-1)
             split_loss = split_scores[argmax_split_index]
 
         return split, split_loss
@@ -307,6 +326,7 @@ class SpanBasedParser(nn.Module):
                 if argmax_label != oracle_label else torch.zeros(1, device=self.device).squeeze())
         else:
             label = argmax_label
+            label_scores = F.softmax(label_scores, dim=-1)
             label_loss = label_scores[argmax_label_index]
 
         return label, label_loss

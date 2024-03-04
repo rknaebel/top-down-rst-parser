@@ -51,7 +51,7 @@ class Segmenter(nn.Module):
 
     @staticmethod
     def load_model(model_path, config):
-        print('load model: {}'.format(model_path))
+        print('load model: {}'.format(model_path), file=sys.stderr)
         device = torch.device('cpu') if config.cpu else torch.device('cuda:0')
         model_state = Checkpointer.restore(model_path, device=device)
         model_config = model_state['config']
@@ -152,7 +152,7 @@ class SegmenterEnsemble(nn.Module):
 
 
 class Trainer:
-    def __init__(self, config, model, optimizer, scheduler, train_dataset, valid_dataset=None):
+    def __init__(self, config, model, train_dataset, valid_dataset=None):
         self._epochs = config.epochs
         self._disable_tqdm = False
         self._log_file = config.log_file
@@ -172,16 +172,13 @@ class Trainer:
             self.train_dataset, self.valid_dataset = random_split(self.train_dataset, [train_size, valid_size])
 
         self._model = model
-        self._optimizer = optimizer
+        self._optimizer = optim.Adam(model.parameters(), lr=config.lr, weight_decay=config.weight_decay)
         self._max_grad_norm = config.grad_clipping
-        self._scheduler = scheduler
+        self._scheduler = optim.lr_scheduler.ExponentialLR(self._optimizer, config.lr_decay)
 
         self._config = config
         self._cur_epoch = 1
         self.batch_size = config.batch_size
-
-        # if self._checkpointer.get_latast_checkpoint() is not None:
-        #     self.load_checkpoint()
 
     def load_checkpoint(self, best_checkpoint=False):
         checkpoint_path = self._checkpointer.get_latest_checkpoint(best_checkpoint=best_checkpoint)
@@ -319,8 +316,6 @@ def main():
     parser.add_argument('--lr-decay', type=float, default=0.95)
     parser.add_argument('--grad-clipping', type=float, default=5.0)
     parser.add_argument('--data-split', type=float, default=0.9)
-    # parser.add_argument('--metric', default='f1')
-    # parser.add_argument('--maximize-metric', action='store_true')
     parser.add_argument('--batch-size', type=int, default=32)
     parser.add_argument('--bert-model', type=str, default='bert-base-cased')
     parser.add_argument('--last-hidden-only', action='store_true')
@@ -339,9 +334,7 @@ def main():
         valid_dataset = Dataset([config.valid_file])
         model = Segmenter.build_model(config)
 
-        optimizer = optim.Adam(model.parameters(), lr=config.lr, weight_decay=config.weight_decay)
-        scheduler = optim.lr_scheduler.ExponentialLR(optimizer, config.lr_decay)
-        trainer = Trainer(config, model, optimizer, scheduler, dataset, valid_dataset)
+        trainer = Trainer(config, model, dataset, valid_dataset)
         trainer.run()
     else:
         print("missing train/valid data")
@@ -353,11 +346,8 @@ def main():
             model = Segmenter.load_model(config.model_paths[0], config)
         elif len(config.model_paths) > 1:
             model = SegmenterEnsemble.load_model(config.model_paths, config)
-        # elif config.train_file and config.valid_file:
-        #     model_path = trainer._checkpointer.get_latast_checkpoint()
         else:
             raise ValueError("no model path...")
-        # model = Segmenter.load_model(model_path, config)
 
         if len(config.model_paths) > 1:
             for m in model.models:

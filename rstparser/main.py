@@ -14,11 +14,6 @@ def main():
         train(config)
     elif config.subcommand == 'test':
         test(config)
-    else:
-        print('train / test')
-        return -1
-
-    return 0
 
 
 def train(config):
@@ -35,8 +30,6 @@ def train(config):
 def test(config):
     dataset = Dataset([config.test_file], config)
     test_iter = DataLoader(dataset, batch_size=config.batch_size, collate_fn=Batch.from_samples)
-    # model = SpanBasedParser.load_model(config.model_path[0], config)
-    # model = EnsembleParser.load_model(config.model_path, config)
     model = HierarchicalParser.load_model(config.model_path, config)
     scores = Trainer.valid(model, test_iter)
     print("Evaluation")

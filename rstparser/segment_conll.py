@@ -1,10 +1,12 @@
 import argparse
 import itertools
 import logging
+import sys
 from collections import OrderedDict
 from pathlib import Path
 
 import conllu
+import conllu.exceptions
 import numpy as np
 import torch
 from tqdm import tqdm
@@ -51,29 +53,34 @@ def main():
         with torch.no_grad():
             with open(output_path, 'w') as f:
                 iter_sents = conllu.parse_incr(doc_path.open(), fields=conllu.parser.DEFAULT_FIELDS)
-                iter_sents = filter(lambda d: len(d) < 300 and all(len(t['form']) < 150 for t in d), iter_sents)
+                iter_sents = filter(lambda d: len(d) < 200 and all(len(t['form']) < 150 for t in d), iter_sents)
                 while True:
-                    sents_batch = list(itertools.islice(iter_sents, config.batch_size))
+                    try:
+                        sents_batch = list(itertools.islice(iter_sents, config.batch_size))
+                    except conllu.exceptions.ParseException as e:
+                        print(f"\nConll Parse Error: {doc_path}\n{e}", file=sys.stderr)
+                        exit(1)
                     if not len(sents_batch):
                         break
-                    batch = Batch.from_samples([Sample(doc_path.name,
-                                                       [tok['form'] for tok in sent], np.array([]))
-                                                for sent in sents_batch])
-                    outputs = model.parse(batch)['edu_splits']
-                    for tokens, preds, sent in zip(batch.tokens, outputs, sents_batch):
-                        # pred_out = ' '.join((" || " if p else "") + t for t, p in zip(tokens[0], preds))
-                        # print('=' * 10)
-                        # print('Pred EDU seg: {}'.format(pred_out))
-                        for t_i, (tok, edu_start) in enumerate(zip(sent, preds)):
-                            if t_i == 0 or edu_start.item() > 0.5:
-                                if 'misc' in tok:
-                                    tok['misc']['BeginSeg'] = 'YES'
-                                else:
-                                    tok['misc'] = OrderedDict({
-                                        'BeginSeg': 'YES'
-                                    })
+                    try:
+                        batch = Batch.from_samples([Sample(doc_path.name,
+                                                           [tok['form'] for tok in sent], np.array([]))
+                                                    for sent in sents_batch])
+                        outputs = model.parse(batch)['edu_splits']
+                        for tokens, preds, sent in zip(batch.tokens, outputs, sents_batch):
+                            for t_i, (tok, edu_start) in enumerate(zip(sent, preds)):
+                                if t_i == 0 or edu_start.item() > 0.5:
+                                    if 'misc' in tok:
+                                        tok['misc']['BeginSeg'] = 'YES'
+                                    else:
+                                        tok['misc'] = OrderedDict({
+                                            'BeginSeg': 'YES'
+                                        })
 
-                        f.write(sent.serialize())
+                            f.write(sent.serialize())
+                    except RuntimeError:
+                        print(f"\nRuntime Error: {doc_path}", file=sys.stderr)
+                        continue
 
 
 if __name__ == '__main__':

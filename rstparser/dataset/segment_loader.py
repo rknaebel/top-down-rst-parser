@@ -1,4 +1,5 @@
 import json
+import sys
 from pathlib import Path
 from typing import List
 
@@ -55,7 +56,7 @@ class Dataset(torch.utils.data.Dataset):
                 try:
                     doc = preprocess(doc)
                 except:
-                    print(doc)
+                    print(doc, file=sys.stderr)
                     exit(1)
                 dataset.append(doc)
 

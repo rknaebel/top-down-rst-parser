@@ -4,7 +4,6 @@ from typing import List
 
 import click
 import nltk
-import spacy
 import uvicorn
 from conllu import TokenList
 from conllu.models import Token, Metadata
@@ -12,6 +11,7 @@ from conllu.parser import DEFAULT_FIELDS
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from nltk.tokenize import treebank
 from nltk.treeprettyprinter import TreePrettyPrinter
 from pydantic.main import BaseModel
 
@@ -97,15 +97,13 @@ app = FastAPI(
 templates = Jinja2Templates(directory="rstparser/app/pages")
 
 rst_parser: HierarchicalParser = None
-nlp: spacy.pipeline.Pipe = None
-
+TOKENIZER = treebank.TreebankWordTokenizer()
 
 @app.on_event("startup")
 async def startup_event():
     global rst_parser, brown_clusters, nlp
     args, _ = get_argparser().parse_known_args()
     rst_parser = HierarchicalParser.load_model(args.model_path, args)
-    nlp = spacy.load('en_core_web_sm', disable=["tagger", "parser", "lemmatizer", "ner"])
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -133,7 +131,7 @@ async def get_parsing(r: ParserRequest):
     """
     edus = [edu.strip() for edu in r.edus]
     sentences = get_sentences(edus)
-    parses = [nlp(sent) for sent in sentences]
+    parses = TOKENIZER.tokenize_sents(sentences)
     parses = merge_as_text(merge_edus_into_parses(edus, parses))
     doc = Doc.from_conll_file(io.StringIO(parses))
     pred_rst = rst_parser.parse(doc)
